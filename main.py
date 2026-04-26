@@ -2,9 +2,9 @@ print("BOT STARTED")
 import pandas as pd
 import requests
 
-def get_data(symbol):
+df = get_data(symbol)
 
-    if df is None:
+if df is None:
     continue
     url = "https://api.binance.com/api/v3/klines"
     params = {"symbol": symbol, "interval": INTERVAL, "limit": 200}
