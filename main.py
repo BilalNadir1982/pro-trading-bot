@@ -1,10 +1,7 @@
 import requests
 import pandas as pd
-
+import ta
 from config import *
-from strategy import calculate, spot_signal
-from backtest import backtest
-from optimize import optimize_params
 
 
 # =========================
@@ -15,22 +12,18 @@ def send(msg):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
     try:
-        requests.post(
-            url,
-            data={"chat_id": CHAT_ID, "text": msg},
-            timeout=10
-        )
+        requests.post(url, data={"chat_id": CHAT_ID, "text": msg}, timeout=10)
     except:
-        print("Telegram error")
+        pass
 
 
 # =========================
-# BINANCE DATA
+# DATA
 # =========================
 def get_data(symbol):
 
     url = "https://api.binance.com/api/v3/klines"
-    params = {"symbol": symbol, "interval": INTERVAL, "limit": 200}
+    params = {"symbol": symbol, "interval": INTERVAL, "limit": 100}
 
     try:
         data = requests.get(url, params=params, timeout=10).json()
@@ -40,20 +33,85 @@ def get_data(symbol):
     if not isinstance(data, list):
         return None
 
-    try:
-        df = pd.DataFrame(data)
-        df = df.iloc[:, :6]
-        df.columns = ["time","open","high","low","close","volume"]
+    df = pd.DataFrame(data)
+    df = df.iloc[:, :6]
+    df.columns = ["time","open","high","low","close","volume"]
 
-        df["close"] = df["close"].astype(float)
-        df["high"] = df["high"].astype(float)
-        df["low"] = df["low"].astype(float)
-        df["volume"] = df["volume"].astype(float)
+    df["close"] = df["close"].astype(float)
+    df["high"] = df["high"].astype(float)
+    df["low"] = df["low"].astype(float)
+    df["volume"] = df["volume"].astype(float)
 
-        return df
+    return df
 
-    except:
-        return None
+
+# =========================
+# INDICATORS
+# =========================
+def prepare(df):
+
+    df["ema20"] = ta.trend.ema_indicator(df["close"], 20)
+    df["ema50"] = ta.trend.ema_indicator(df["close"], 50)
+    df["rsi"] = ta.momentum.rsi(df["close"], 14)
+
+    macd = ta.trend.MACD(df["close"])
+    df["macd"] = macd.macd()
+    df["macd_signal"] = macd.macd_signal()
+
+    return df
+
+
+# =========================
+# AI FILTER
+# =========================
+def ai_filter(df):
+
+    last = df.iloc[-1]
+
+    score = 0
+
+    if last["ema20"] > last["ema50"]:
+        score += 1
+
+    if 45 < last["rsi"] < 65:
+        score += 1
+
+    if last["macd"] > last["macd_signal"]:
+        score += 1
+
+    if df["volume"].iloc[-1] > df["volume"].rolling(20).mean().iloc[-1] * 1.5:
+        score += 1
+
+    return score >= 3
+
+
+# =========================
+# SMART MONEY
+# =========================
+def smart_money(df):
+
+    vol = df["volume"].iloc[-1]
+    avg = df["volume"].rolling(20).mean().iloc[-1]
+
+    trend = df["close"].iloc[-1] > df["close"].iloc[-5]
+
+    return vol > avg * 2 and trend
+
+
+# =========================
+# FUTURES ENGINE
+# =========================
+def futures(df):
+
+    last = df.iloc[-1]
+
+    if last["ema20"] > last["ema50"] and last["rsi"] < 50:
+        return "LONG 5x"
+
+    if last["ema20"] < last["ema50"] and last["rsi"] > 50:
+        return "SHORT 5x"
+
+    return None
 
 
 # =========================
@@ -84,97 +142,50 @@ def top_movers():
 
 
 # =========================
-# WHALE DETECTION
-# =========================
-def whale(df):
-
-    try:
-        avg = df["volume"].rolling(20).mean().iloc[-1]
-        last = df["volume"].iloc[-1]
-        return last > avg * 2
-    except:
-        return False
-
-
-# =========================
-# MAIN ENGINE
+# CORE AI ENGINE
 # =========================
 def run():
 
-    print("BOT STARTED")
+    send("🚀 AI PRO TRADING BOT STARTED")
 
-    send("🚀 PRO AI BOT STARTED")
-
-    # =====================
-    # AI OPTIMIZATION
-    # =====================
-    best = optimize_params()
-    send(f"🧠 OPTIMUM RSI LEVEL: {best['rsi']}")
-
-    # =====================
-    # BACKTEST (BTC SAMPLE)
-    # =====================
-    btc = get_data("BTCUSDT")
-
-    if btc is not None:
-
-        result = backtest(btc)
-
-        send(f"""
-📊 BACKTEST RESULT
-
-Trades: {result['trades']}
-Wins: {result['wins']}
-Losses: {result['losses']}
-Winrate: %{result['winrate']}
-""")
-
-    # =====================
-    # TOP MOVERS
-    # =====================
     movers = top_movers()
 
     if movers:
         send("🔥 TOP MOVERS:\n" +
              "\n".join([f"{x['symbol']} %{x['priceChangePercent']}" for x in movers]))
 
-    # =====================
-    # SCAN COINS
-    # =====================
     for symbol in SYMBOLS:
 
         df = get_data(symbol)
         if df is None:
             continue
 
-        df = calculate(df)
+        df = prepare(df)
 
-        price = df.iloc[-1]["close"]
+        last = df.iloc[-1]
+        price = last["close"]
 
-        sig, tp, sl = spot_signal(df)
+        # AI CONDITIONS
+        if not ai_filter(df):
+            continue
 
-        if sig:
+        if not smart_money(df):
+            continue
 
-            send(f"""
-🚀 SIGNAL
+        lev = futures(df)
+
+        send(f"""
+🤖 AI SIGNAL
 
 Coin: {symbol}
-Type: {sig}
 Price: {price}
 
-TP: {tp}
-SL: {sl}
+Trend: {"UP" if last["ema20"] > last["ema50"] else "DOWN"}
+RSI: {last["rsi"]:.2f}
+
+Futures: {lev}
 """)
 
-        if whale(df):
-
-            send(f"""
-🐋 WHALE ALERT
-
-{symbol}
-Volume Spike
-Price: {price}
-""")
 
     send("✅ SCAN COMPLETE")
 
