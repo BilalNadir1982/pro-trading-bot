@@ -20,30 +20,45 @@ def send(msg):
 # =========================
 # DATA
 # =========================
-def get_data(symbol):
+ddef get_data(symbol):
 
     url = "https://api.binance.com/api/v3/klines"
-    params = {"symbol": symbol, "interval": INTERVAL, "limit": 100}
+    params = {
+        "symbol": symbol,
+        "interval": INTERVAL,
+        "limit": 100
+    }
 
     try:
-        data = requests.get(url, params=params, timeout=10).json()
-    except:
+        r = requests.get(url, params=params, timeout=10)
+
+        # 🔥 DEBUG
+        print("STATUS:", r.status_code)
+
+        if r.status_code != 200:
+            return None
+
+        data = r.json()
+
+        # 🔥 KRİTİK KONTROL
+        if not isinstance(data, list) or len(data) == 0:
+            print("DATA FORMAT HATALI:", data)
+            return None
+
+        df = pd.DataFrame(data)
+        df = df.iloc[:, :6]
+        df.columns = ["time","open","high","low","close","volume"]
+
+        df["close"] = df["close"].astype(float)
+        df["high"] = df["high"].astype(float)
+        df["low"] = df["low"].astype(float)
+        df["volume"] = df["volume"].astype(float)
+
+        return df
+
+    except Exception as e:
+        print("HATA:", e)
         return None
-
-    if not isinstance(data, list):
-        return None
-
-    df = pd.DataFrame(data)
-    df = df.iloc[:, :6]
-    df.columns = ["time","open","high","low","close","volume"]
-
-    df["close"] = df["close"].astype(float)
-    df["high"] = df["high"].astype(float)
-    df["low"] = df["low"].astype(float)
-    df["volume"] = df["volume"].astype(float)
-
-    return df
-
 
 # =========================
 # INDICATORS
