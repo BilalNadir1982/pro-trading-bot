@@ -1,60 +1,60 @@
 import requests
 import pandas as pd
+
 from config import *
+
 
 # =========================
 # TELEGRAM
 # =========================
 def send(msg):
+
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+
     try:
-        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
         requests.post(url, data={
             "chat_id": CHAT_ID,
             "text": msg
         }, timeout=10)
     except:
-        print("Telegram error")
+        print("telegram error")
 
 
 # =========================
-# DATA (BINANCE FUTURES)
+# COINGECKO DATA (STABLE)
 # =========================
 def get_data(symbol):
 
-    url = "https://fapi.binance.com/fapi/v1/klines"
-
-    params = {
-        "symbol": symbol,
-        "interval": INTERVAL,
-        "limit": 100
-    }
-
-    headers = {"User-Agent": "Mozilla/5.0"}
-
     try:
-        r = requests.get(url, params=params, headers=headers, timeout=10)
+        coin = symbol.replace("USDT", "").lower()
+
+        url = f"https://api.coingecko.com/api/v3/coins/{coin}/market_chart"
+
+        params = {
+            "vs_currency": "usd",
+            "days": 1,
+            "interval": "hourly"
+        }
+
+        r = requests.get(url, params=params, timeout=10)
 
         if r.status_code != 200:
-            print(symbol, "HTTP ERROR", r.status_code)
             return None
 
         data = r.json()
 
-        if not isinstance(data, list):
-            print(symbol, "NO DATA")
+        prices = data.get("prices", [])
+        volumes = data.get("total_volumes", [])
+
+        if not prices or not volumes:
             return None
 
-        df = pd.DataFrame(data)
-        df = df.iloc[:, :6]
-        df.columns = ["time","open","high","low","close","volume"]
-
-        df["close"] = df["close"].astype(float)
-        df["volume"] = df["volume"].astype(float)
+        df = pd.DataFrame(prices, columns=["time","close"])
+        df["volume"] = [v[1] for v in volumes]
 
         return df
 
-    except Exception as e:
-        print(symbol, "ERROR", e)
+    except:
         return None
 
 
@@ -63,16 +63,15 @@ def get_data(symbol):
 # =========================
 def prepare(df):
 
-    df["ema20"] = df["close"].rolling(20).mean()
-    df["ema50"] = df["close"].rolling(50).mean()
-
-    df["vol_ma"] = df["volume"].rolling(20).mean()
+    df["ema20"] = df["close"].rolling(5).mean()
+    df["ema50"] = df["close"].rolling(10).mean()
+    df["vol_ma"] = df["volume"].rolling(5).mean()
 
     return df
 
 
 # =========================
-# SMART FILTER
+# FILTER
 # =========================
 def smart_filter(df):
 
@@ -85,7 +84,7 @@ def smart_filter(df):
 
 
 # =========================
-# SIGNAL ENGINE
+# SIGNAL
 # =========================
 def signal(df):
 
@@ -105,7 +104,7 @@ def signal(df):
 # =========================
 def run():
 
-    send("🚀 PRO TRADING BOT STARTED")
+    send("🚀 STABLE COINGECKO BOT STARTED")
 
     for symbol in SYMBOLS:
 
@@ -114,7 +113,7 @@ def run():
         df = get_data(symbol)
 
         if df is None:
-            send(f"{symbol} DATA FAILED")
+            send(f"{symbol} NO DATA")
             continue
 
         df = prepare(df)
@@ -134,6 +133,8 @@ def run():
 Coin: {symbol}
 Direction: {sig}
 Price: {price}
+
+STATUS: STABLE DATA
 """)
 
     send("✅ SCAN COMPLETE")
