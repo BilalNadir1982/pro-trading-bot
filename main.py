@@ -21,7 +21,7 @@ def get_data(symbol):
 
     df = pd.DataFrame(data)
     df = df.iloc[:, :6]
-    df.columns = ["time", "open", "high", "low", "close", "volume"]
+    df.columns = ["time","open","high","low","close","volume"]
 
     df["close"] = df["close"].astype(float)
     df["high"] = df["high"].astype(float)
@@ -31,32 +31,25 @@ def get_data(symbol):
 
 
 def run():
-    sent = {}
 
     print("BOT STARTED")
 
-    while True:
+    for symbol in SYMBOLS:
 
-        for symbol in SYMBOLS:
+        df = get_data(symbol)
+        if df is None:
+            continue
 
-            df = get_data(symbol)
+        df = calculate(df)
 
-            if df is None:
-                continue
+        sig, tp, sl = signal(df)
 
-            df = calculate(df)
+        if sig:
 
-            sig, tp, sl = signal(df)
+            price = df.iloc[-1]["close"]
 
-            if sig:
-                key = f"{symbol}_{sig}"
-
-                if key not in sent:
-
-                    price = df.iloc[-1]["close"]
-
-                    msg = f"""
-🚀 SİNYAL
+            msg = f"""
+🚀 PRO SİNYAL
 
 Coin: {symbol}
 Tip: {sig}
@@ -66,10 +59,7 @@ TP: {round(tp,2)}
 SL: {round(sl,2)}
 """
 
-                    send(msg)
-                    sent[key] = True
-
-        time.sleep(60)
+            send(msg)
 
 
 run()
