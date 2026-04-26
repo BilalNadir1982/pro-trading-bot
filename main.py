@@ -147,37 +147,31 @@ def run():
 
     send("🚀 AI PRO TRADING BOT STARTED")
 
-    movers = top_movers()
-
-    if movers:
-        send("🔥 TOP MOVERS:\n" +
-             "\n".join([f"{x['symbol']} %{x['priceChangePercent']}" for x in movers]))
-
     for symbol in SYMBOLS:
 
-    df = get_data(symbol)
-    if df is None:
-        continue
+        df = get_data(symbol)
+        if df is None:
+            continue
 
-    df = prepare(df)
+        df = prepare(df)
 
-    last = df.iloc[-1]
-    price = last["close"]
+        last = df.iloc[-1]
+        price = last["close"]
 
-    # 🔥 HER COIN GÖRÜLSÜN
-    send(f"CHECK: {symbol}")
+        # DEBUG
+        send(f"CHECK: {symbol}")
 
-    ai_ok = ai_filter(df)
-    smart_ok = smart_money(df, symbol)
+        ai_ok = ai_filter(df)
+        smart_ok = smart_money(df, symbol)
 
-    send(f"{symbol} AI:{ai_ok} SMART:{smart_ok}")
+        send(f"{symbol} AI:{ai_ok} SMART:{smart_ok}")
 
-    lev = futures(df)
+        lev = futures(df)
 
-    # 🔥 GEÇİCİ: SADECE AI BAK
-    if ai_ok:
+        # TEST MODU (KESİN SİNYAL GÖRMEK İÇİN)
+        if True:
 
-        send(f"""
+            send(f"""
 🚀 TEST SIGNAL
 
 Coin: {symbol}
@@ -188,8 +182,6 @@ SMART: {smart_ok}
 Futures: {lev}
 """)
 
-
     send("✅ SCAN COMPLETE")
-
 
 run()
