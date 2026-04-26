@@ -88,15 +88,13 @@ def ai_filter(df):
 # =========================
 # SMART MONEY
 # =========================
-def smart_money(df):
+if not smart_money(df, symbol):
 
     vol = df["volume"].iloc[-1]
     avg = df["volume"].rolling(20).mean().iloc[-1]
 
-    trend = df["close"].iloc[-1] > df["close"].iloc[-5]
-
-    return vol > avg * 1.3 and trend
-
+    # 🔥 DAHA YUMUŞAK (SİNYAL ÜRETSİN DİYE)
+    return vol > avg * 1.3
 
 # =========================
 # FUTURES ENGINE
