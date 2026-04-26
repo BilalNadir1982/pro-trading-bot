@@ -36,18 +36,22 @@ def run():
         try:
             for symbol in SYMBOLS:
 
-                df = get_data(symbol)
-                df = calculate(df)
+    df = get_data(symbol)
 
-                sig, tp, sl = signal(df)
+    if df is None:
+        continue
 
-                if sig:
-                    key = f"{symbol}_{sig}"
+    df = calculate(df)
 
-                    if key not in sent:
-                        price = df.iloc[-1]["close"]
+    sig, tp, sl = signal(df)
 
-                        msg = f"""
+    if sig:
+        key = f"{symbol}_{sig}"
+
+        if key not in sent:
+            price = df.iloc[-1]["close"]
+
+            msg = f"""
 🚀 SİNYAL
 
 Coin: {symbol}
@@ -57,8 +61,8 @@ Entry: {price}
 TP: {round(tp,2)}
 SL: {round(sl,2)}
 """
-                        send(msg)
-                        sent[key] = True
+            send(msg)
+            sent[key] = True
 
             time.sleep(60)
 
