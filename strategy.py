@@ -1,8 +1,6 @@
-import pandas as pd
 import ta
 
 def calculate(df):
-
     df["ema20"] = ta.trend.ema_indicator(df["close"], 20)
     df["ema50"] = ta.trend.ema_indicator(df["close"], 50)
     df["ema200"] = ta.trend.ema_indicator(df["close"], 200)
@@ -13,13 +11,14 @@ def calculate(df):
     df["macd"] = macd.macd()
     df["macd_signal"] = macd.macd_signal()
 
-    df["atr"] = ta.volatility.average_true_range(df["high"], df["low"], df["close"], 14)
+    df["atr"] = ta.volatility.average_true_range(
+        df["high"], df["low"], df["close"], 14
+    )
 
     return df
 
 
 def signal(df):
-
     last = df.iloc[-1]
     prev = df.iloc[-2]
 
