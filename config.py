@@ -3,9 +3,13 @@ import os
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-SYMBOLS = [
-    "BTCUSDT","ETHUSDT","SOLUSDT",
-    "BNBUSDT","XRPUSDT","ADAUSDT"
-]
+COINS = {
+    "BTCUSDT": "bitcoin",
+    "ETHUSDT": "ethereum",
+    "SOLUSDT": "solana",
+    "BNBUSDT": "binancecoin",
+    "XRPUSDT": "ripple",
+    "ADAUSDT": "cardano"
+}
 
-INTERVAL = "15m"
+SYMBOLS = list(COINS.keys())
