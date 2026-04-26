@@ -1,18 +1,21 @@
 import requests
 import pandas as pd
-import time
 from config import *
 from strategy import calculate, signal
 
 
 def send(msg):
+    print("SEND:", msg)  # DEBUG
+
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+    r = requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+
+    print("TELEGRAM RESPONSE:", r.text)
 
 
 def get_data(symbol):
     url = "https://api.binance.com/api/v3/klines"
-    params = {"symbol": symbol, "interval": INTERVAL, "limit": 200}
+    params = {"symbol": symbol, "interval": INTERVAL, "limit": 100}
 
     data = requests.get(url, params=params).json()
 
@@ -34,7 +37,12 @@ def run():
 
     print("BOT STARTED")
 
+    # 🔥 TELEGRAM TEST (EN ÖNEMLİ)
+    send("🚀 BOT AKTİF - TEST MESAJI")
+
     for symbol in SYMBOLS:
+
+        print("CHECK:", symbol)
 
         df = get_data(symbol)
         if df is None:
@@ -44,16 +52,16 @@ def run():
 
         sig, tp, sl = signal(df)
 
+        print("SIGNAL:", symbol, sig)
+
         if sig:
 
-            price = df.iloc[-1]["close"]
-
             msg = f"""
-🚀 PRO SİNYAL
+🚀 SİNYAL
 
 Coin: {symbol}
 Tip: {sig}
-Entry: {price}
+Entry: {df.iloc[-1]['close']}
 
 TP: {round(tp,2)}
 SL: {round(sl,2)}
