@@ -20,19 +20,23 @@ def send(msg):
 # =========================
 # DATA
 # =========================
-ddef get_data(symbol):
+def get_data(symbol):
 
     url = "https://api.binance.com/api/v3/klines"
+
     params = {
         "symbol": symbol,
         "interval": INTERVAL,
         "limit": 100
     }
 
-    try:
-        r = requests.get(url, params=params, timeout=10)
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
 
-        # 🔥 DEBUG
+    try:
+        r = requests.get(url, params=params, headers=headers, timeout=10)
+
         print("STATUS:", r.status_code)
 
         if r.status_code != 200:
@@ -40,9 +44,8 @@ ddef get_data(symbol):
 
         data = r.json()
 
-        # 🔥 KRİTİK KONTROL
         if not isinstance(data, list) or len(data) == 0:
-            print("DATA FORMAT HATALI:", data)
+            print("DATA HATALI:", data)
             return None
 
         df = pd.DataFrame(data)
@@ -59,7 +62,6 @@ ddef get_data(symbol):
     except Exception as e:
         print("HATA:", e)
         return None
-
 # =========================
 # INDICATORS
 # =========================
