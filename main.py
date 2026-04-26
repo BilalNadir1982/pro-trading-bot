@@ -1,7 +1,10 @@
 import requests
 import pandas as pd
+
 from config import *
-from strategy import calculate, spot_signal, futures_signal
+from strategy import calculate, spot_signal
+from backtest import backtest
+from optimize import optimize_params
 
 
 # =========================
@@ -12,14 +15,13 @@ def send(msg):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
     try:
-        r = requests.post(
+        requests.post(
             url,
             data={"chat_id": CHAT_ID, "text": msg},
             timeout=10
         )
-        print("TG:", r.text)
-    except Exception as e:
-        print("Telegram error:", e)
+    except:
+        print("Telegram error")
 
 
 # =========================
@@ -28,7 +30,7 @@ def send(msg):
 def get_data(symbol):
 
     url = "https://api.binance.com/api/v3/klines"
-    params = {"symbol": symbol, "interval": INTERVAL, "limit": 100}
+    params = {"symbol": symbol, "interval": INTERVAL, "limit": 200}
 
     try:
         data = requests.get(url, params=params, timeout=10).json()
@@ -55,7 +57,7 @@ def get_data(symbol):
 
 
 # =========================
-# TOP MOVERS (FIXED)
+# TOP MOVERS
 # =========================
 def top_movers():
 
@@ -72,62 +74,76 @@ def top_movers():
     cleaned = []
 
     for x in data:
-
-        if not isinstance(x, dict):
-            continue
-
         try:
-            change = float(x.get("priceChangePercent", 0))
-            x["priceChangePercent"] = change
+            x["priceChangePercent"] = float(x["priceChangePercent"])
             cleaned.append(x)
         except:
             continue
 
-    sorted_data = sorted(
-        cleaned,
-        key=lambda x: x["priceChangePercent"],
-        reverse=True
-    )
-
-    return sorted_data[:5]
+    return sorted(cleaned, key=lambda x: x["priceChangePercent"], reverse=True)[:5]
 
 
 # =========================
 # WHALE DETECTION
 # =========================
-def volume_spike(df):
+def whale(df):
 
     try:
         avg = df["volume"].rolling(20).mean().iloc[-1]
         last = df["volume"].iloc[-1]
-
         return last > avg * 2
     except:
         return False
 
 
 # =========================
-# BOT CORE
+# MAIN ENGINE
 # =========================
 def run():
 
     print("BOT STARTED")
 
-    # 🔥 TEST MESAJI
-    send("🚀 BOT AKTİF")
+    send("🚀 PRO AI BOT STARTED")
 
+    # =====================
+    # AI OPTIMIZATION
+    # =====================
+    best = optimize_params()
+    send(f"🧠 OPTIMUM RSI LEVEL: {best['rsi']}")
+
+    # =====================
+    # BACKTEST (BTC SAMPLE)
+    # =====================
+    btc = get_data("BTCUSDT")
+
+    if btc is not None:
+
+        result = backtest(btc)
+
+        send(f"""
+📊 BACKTEST RESULT
+
+Trades: {result['trades']}
+Wins: {result['wins']}
+Losses: {result['losses']}
+Winrate: %{result['winrate']}
+""")
+
+    # =====================
+    # TOP MOVERS
+    # =====================
     movers = top_movers()
 
     if movers:
-        msg = "🔥 TOP MOVERS:\n"
-        for m in movers:
-            msg += f"{m['symbol']} % {m['priceChangePercent']}\n"
-        send(msg)
+        send("🔥 TOP MOVERS:\n" +
+             "\n".join([f"{x['symbol']} %{x['priceChangePercent']}" for x in movers]))
 
+    # =====================
+    # SCAN COINS
+    # =====================
     for symbol in SYMBOLS:
 
         df = get_data(symbol)
-
         if df is None:
             continue
 
@@ -135,45 +151,32 @@ def run():
 
         price = df.iloc[-1]["close"]
 
-        # ================= SPOT
         sig, tp, sl = spot_signal(df)
 
         if sig:
+
             send(f"""
-🚀 SPOT SIGNAL
+🚀 SIGNAL
 
 Coin: {symbol}
 Type: {sig}
 Price: {price}
 
-TP: {round(tp,2)}
-SL: {round(sl,2)}
+TP: {tp}
+SL: {sl}
 """)
 
-        # ================= FUTURES
-        fut = futures_signal(df)
+        if whale(df):
 
-        if fut:
-            send(f"""
-⚡ FUTURES SIGNAL
-
-Coin: {symbol}
-Direction: {fut}
-Price: {price}
-""")
-
-        # ================= WHALE
-        if volume_spike(df):
             send(f"""
 🐋 WHALE ALERT
 
-Coin: {symbol}
+{symbol}
 Volume Spike
 Price: {price}
 """)
 
+    send("✅ SCAN COMPLETE")
 
-# =========================
-# START
-# =========================
+
 run()
