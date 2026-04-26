@@ -1,8 +1,6 @@
 import requests
 import pandas as pd
-
 from config import *
-
 
 # =========================
 # TELEGRAM
@@ -17,16 +15,20 @@ def send(msg):
             "text": msg
         }, timeout=10)
     except:
-        print("telegram error")
+        print("Telegram error")
 
 
 # =========================
-# COINGECKO DATA (STABLE)
+# COINGECKO DATA (FIXED)
 # =========================
 def get_data(symbol):
 
     try:
-        coin = symbol.replace("USDT", "").lower()
+        coin = COINS.get(symbol)
+
+        if not coin:
+            print(symbol, "NO MAP")
+            return None
 
         url = f"https://api.coingecko.com/api/v3/coins/{coin}/market_chart"
 
@@ -39,6 +41,7 @@ def get_data(symbol):
         r = requests.get(url, params=params, timeout=10)
 
         if r.status_code != 200:
+            print(symbol, "API ERROR")
             return None
 
         data = r.json()
@@ -47,14 +50,16 @@ def get_data(symbol):
         volumes = data.get("total_volumes", [])
 
         if not prices or not volumes:
+            print(symbol, "EMPTY DATA")
             return None
 
-        df = pd.DataFrame(prices, columns=["time","close"])
+        df = pd.DataFrame(prices, columns=["time", "close"])
         df["volume"] = [v[1] for v in volumes]
 
         return df
 
-    except:
+    except Exception as e:
+        print(symbol, "ERROR", e)
         return None
 
 
@@ -77,14 +82,11 @@ def smart_filter(df):
 
     last = df.iloc[-1]
 
-    if last["volume"] > last["vol_ma"] * 1.2:
-        return True
-
-    return False
+    return last["volume"] > last["vol_ma"] * 1.2
 
 
 # =========================
-# SIGNAL
+# SIGNAL ENGINE
 # =========================
 def signal(df):
 
@@ -104,7 +106,7 @@ def signal(df):
 # =========================
 def run():
 
-    send("🚀 STABLE COINGECKO BOT STARTED")
+    send("🚀 CLEAN COINGECKO BOT STARTED")
 
     for symbol in SYMBOLS:
 
@@ -133,8 +135,6 @@ def run():
 Coin: {symbol}
 Direction: {sig}
 Price: {price}
-
-STATUS: STABLE DATA
 """)
 
     send("✅ SCAN COMPLETE")
