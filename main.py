@@ -1,26 +1,28 @@
 print("BOT STARTED")
-import requests
 import pandas as pd
-import time
-from config import *
-from strategy import calculate, signal
-
-def send(msg):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+import requests
 
 def get_data(symbol):
     url = "https://api.binance.com/api/v3/klines"
     params = {"symbol": symbol, "interval": INTERVAL, "limit": 200}
+
     data = requests.get(url, params=params).json()
 
-    df = pd.DataFrame(data)
-    df = df.iloc[:, :6]
-    df.columns = ["time","open","high","low","close","volume"]
+    # ❗ HATA KONTROL
+    if not isinstance(data, list) or len(data) == 0:
+        return None
+
+    df = pd.DataFrame(data, columns=[
+        "time","open","high","low","close","volume",
+        "_","_","_","_","_","_"
+    ])
+
+    df = df[["open","high","low","close","volume"]]
 
     df["close"] = df["close"].astype(float)
     df["high"] = df["high"].astype(float)
     df["low"] = df["low"].astype(float)
+    df["volume"] = df["volume"].astype(float)
 
     return df
 
