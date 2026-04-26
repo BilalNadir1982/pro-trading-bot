@@ -27,34 +27,37 @@ def get_data(symbol):
         coin = COINS.get(symbol)
 
         if not coin:
-            print(symbol, "NO MAP")
             return None
 
-        url = f"https://api.coingecko.com/api/v3/coins/{coin}/market_chart"
+        url = "https://api.coingecko.com/api/v3/coins/markets"
 
         params = {
             "vs_currency": "usd",
-            "days": 1,
-            "interval": "hourly"
+            "ids": coin,
+            "order": "market_cap_desc",
+            "per_page": 1,
+            "page": 1,
+            "sparkline": "false"
         }
 
         r = requests.get(url, params=params, timeout=10)
 
         if r.status_code != 200:
-            print(symbol, "API ERROR")
+            print(symbol, "HTTP ERROR", r.status_code)
             return None
 
         data = r.json()
 
-        prices = data.get("prices", [])
-        volumes = data.get("total_volumes", [])
-
-        if not prices or not volumes:
-            print(symbol, "EMPTY DATA")
+        if not data or len(data) == 0:
+            print(symbol, "EMPTY RESPONSE")
             return None
 
-        df = pd.DataFrame(prices, columns=["time", "close"])
-        df["volume"] = [v[1] for v in volumes]
+        c = data[0]
+
+        df = pd.DataFrame([{
+            "close": c["current_price"],
+            "volume": c["total_volume"]
+        }])
 
         return df
 
