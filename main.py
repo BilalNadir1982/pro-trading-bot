@@ -6,64 +6,89 @@ from config import *
 # TELEGRAM
 # =========================
 def send(msg):
-
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-
     try:
-        requests.post(url, data={
-            "chat_id": CHAT_ID,
-            "text": msg
-        }, timeout=10)
+        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+        requests.post(url, data={"chat_id": CHAT_ID, "text": msg}, timeout=10)
     except:
-        print("Telegram error")
+        print("telegram error")
 
 
 # =========================
-# COINGECKO DATA (FIXED)
+# BINANCE DATA (PRIMARY)
 # =========================
-def get_data(symbol):
+def get_binance(symbol):
 
     try:
-        coin = COINS.get(symbol)
-
-        if not coin:
-            return None
-
-        url = "https://api.coingecko.com/api/v3/coins/markets"
+        url = "https://fapi.binance.com/fapi/v1/klines"
 
         params = {
-            "vs_currency": "usd",
-            "ids": coin,
-            "order": "market_cap_desc",
-            "per_page": 1,
-            "page": 1,
-            "sparkline": "false"
+            "symbol": symbol,
+            "interval": "15m",
+            "limit": 50
         }
 
         r = requests.get(url, params=params, timeout=10)
-
-        if r.status_code != 200:
-            print(symbol, "HTTP ERROR", r.status_code)
-            return None
-
         data = r.json()
 
-        if not data or len(data) == 0:
-            print(symbol, "EMPTY RESPONSE")
+        if not isinstance(data, list):
             return None
 
-        c = data[0]
+        df = pd.DataFrame(data)
+        df = df.iloc[:, :6]
+        df.columns = ["t","o","h","l","c","v"]
+
+        df["c"] = df["c"].astype(float)
+        df["v"] = df["v"].astype(float)
+
+        return df
+
+    except:
+        return None
+
+
+# =========================
+# COINPAPRIKA (FALLBACK)
+# =========================
+def get_paprika(symbol):
+
+    try:
+        coin = symbol.replace("USDT","").lower()
+
+        url = f"https://api.coinpaprika.com/v1/tickers/{coin}-{coin}"
+
+        r = requests.get(url, timeout=10)
+        data = r.json()
+
+        if "quotes" not in data:
+            return None
+
+        price = data["quotes"]["USD"]["price"]
+        volume = data["quotes"]["USD"]["volume_24h"]
 
         df = pd.DataFrame([{
-            "close": c["current_price"],
-            "volume": c["total_volume"]
+            "c": price,
+            "v": volume
         }])
 
         return df
 
-    except Exception as e:
-        print(symbol, "ERROR", e)
+    except:
         return None
+
+
+# =========================
+# HYBRID DATA ENGINE
+# =========================
+def get_data(symbol):
+
+    df = get_binance(symbol)
+
+    if df is not None:
+        return df
+
+    print(symbol, "BINANCE FAIL → PAPRIKA")
+
+    return get_paprika(symbol)
 
 
 # =========================
@@ -71,9 +96,9 @@ def get_data(symbol):
 # =========================
 def prepare(df):
 
-    df["ema20"] = df["close"].rolling(5).mean()
-    df["ema50"] = df["close"].rolling(10).mean()
-    df["vol_ma"] = df["volume"].rolling(5).mean()
+    df["ema20"] = df["c"].rolling(5).mean()
+    df["ema50"] = df["c"].rolling(10).mean()
+    df["vol_ma"] = df["v"].rolling(5).mean()
 
     return df
 
@@ -81,11 +106,11 @@ def prepare(df):
 # =========================
 # FILTER
 # =========================
-def smart_filter(df):
+def filter(df):
 
     last = df.iloc[-1]
 
-    return last["volume"] > last["vol_ma"] * 1.2
+    return last["v"] > last["vol_ma"] * 1.2
 
 
 # =========================
@@ -105,37 +130,37 @@ def signal(df):
 
 
 # =========================
-# MAIN LOOP
+# MAIN
 # =========================
 def run():
 
-    send("🚀 CLEAN COINGECKO BOT STARTED")
+    send("🚀 HYBRID BOT STARTED")
 
-    for symbol in SYMBOLS:
+    for s in SYMBOLS:
 
-        print("CHECK:", symbol)
+        print("CHECK:", s)
 
-        df = get_data(symbol)
+        df = get_data(s)
 
         if df is None:
-            send(f"{symbol} NO DATA")
+            send(f"{s} NO DATA")
             continue
 
         df = prepare(df)
 
-        if not smart_filter(df):
+        if not filter(df):
             continue
 
         sig = signal(df)
 
         if sig:
 
-            price = df.iloc[-1]["close"]
+            price = df.iloc[-1]["c"]
 
             send(f"""
 🚨 SIGNAL
 
-Coin: {symbol}
+Coin: {s}
 Direction: {sig}
 Price: {price}
 """)
