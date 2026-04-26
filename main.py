@@ -145,43 +145,29 @@ def top_movers():
 # =========================
 def run():
 
-    send("🚀 AI PRO TRADING BOT STARTED")
+    send("🚀 BOT START TEST")
+
+    send(f"SYMBOLS: {SYMBOLS}")
 
     for symbol in SYMBOLS:
 
+        send(f"LOOP GİRDİ: {symbol}")
+
         df = get_data(symbol)
+
         if df is None:
+            send(f"{symbol} DATA YOK")
             continue
+
+        send(f"{symbol} DATA OK")
 
         df = prepare(df)
 
         last = df.iloc[-1]
         price = last["close"]
 
-        # DEBUG
-        send(f"CHECK: {symbol}")
+        send(f"{symbol} PRICE: {price}")
 
-        ai_ok = ai_filter(df)
-        smart_ok = smart_money(df, symbol)
-
-        send(f"{symbol} AI:{ai_ok} SMART:{smart_ok}")
-
-        lev = futures(df)
-
-        # TEST MODU (KESİN SİNYAL GÖRMEK İÇİN)
-        if True:
-
-            send(f"""
-🚀 TEST SIGNAL
-
-Coin: {symbol}
-Price: {price}
-
-AI: {ai_ok}
-SMART: {smart_ok}
-Futures: {lev}
-""")
-
-    send("✅ SCAN COMPLETE")
+    send("✅ TEST BİTTİ")
 
 run()
