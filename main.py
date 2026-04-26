@@ -155,33 +155,36 @@ def run():
 
     for symbol in SYMBOLS:
 
-        df = get_data(symbol)
-        if df is None:
-            continue
+    df = get_data(symbol)
+    if df is None:
+        continue
 
-        df = prepare(df)
+    df = prepare(df)
 
-        last = df.iloc[-1]
-        price = last["close"]
+    last = df.iloc[-1]
+    price = last["close"]
 
-        # AI CONDITIONS
-        if not ai_filter(df):
-            continue
+    # 🔥 HER COIN GÖRÜLSÜN
+    send(f"CHECK: {symbol}")
 
-        if not smart_money(df):
-            continue
+    ai_ok = ai_filter(df)
+    smart_ok = smart_money(df, symbol)
 
-        lev = futures(df)
+    send(f"{symbol} AI:{ai_ok} SMART:{smart_ok}")
+
+    lev = futures(df)
+
+    # 🔥 GEÇİCİ: SADECE AI BAK
+    if ai_ok:
 
         send(f"""
-🤖 AI SIGNAL
+🚀 TEST SIGNAL
 
 Coin: {symbol}
 Price: {price}
 
-Trend: {"UP" if last["ema20"] > last["ema50"] else "DOWN"}
-RSI: {last["rsi"]:.2f}
-
+AI: {ai_ok}
+SMART: {smart_ok}
 Futures: {lev}
 """)
 
