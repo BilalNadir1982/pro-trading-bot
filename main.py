@@ -1,23 +1,34 @@
 import requests
 import pandas as pd
 from config import *
-from strategy import calculate, signal
+from strategy import calculate, spot_signal, futures_signal
 
 
+# =========================
+# TELEGRAM
+# =========================
 def send(msg):
-    print("SEND:", msg)  # DEBUG
 
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    r = requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
-    print("TELEGRAM RESPONSE:", r.text)
+    try:
+        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+    except:
+        print("Telegram error")
 
 
+# =========================
+# BINANCE DATA
+# =========================
 def get_data(symbol):
+
     url = "https://api.binance.com/api/v3/klines"
     params = {"symbol": symbol, "interval": INTERVAL, "limit": 100}
 
-    data = requests.get(url, params=params).json()
+    try:
+        data = requests.get(url, params=params).json()
+    except:
+        return None
 
     if not isinstance(data, list):
         return None
@@ -29,45 +40,109 @@ def get_data(symbol):
     df["close"] = df["close"].astype(float)
     df["high"] = df["high"].astype(float)
     df["low"] = df["low"].astype(float)
+    df["volume"] = df["volume"].astype(float)
 
     return df
 
 
+# =========================
+# WHALE / VOLUME SPIKE
+# =========================
+def volume_spike(df):
+
+    avg = df["volume"].rolling(20).mean().iloc[-1]
+    last = df["volume"].iloc[-1]
+
+    return last > avg * 2
+
+
+# =========================
+# TOP MOVERS
+# =========================
+def top_movers():
+
+    url = "https://api.binance.com/api/v3/ticker/24hr"
+    data = requests.get(url).json()
+
+    sorted_data = sorted(
+        data,
+        key=lambda x: float(x["priceChangePercent"]),
+        reverse=True
+    )
+
+    return sorted_data[:5]
+
+
+# =========================
+# BOT CORE
+# =========================
 def run():
 
     print("BOT STARTED")
 
-    # 🔥 TELEGRAM TEST (EN ÖNEMLİ)
-    send("🚀 BOT AKTİF - TEST MESAJI")
+    send("🚀 PRO BOT AKTİF")
+
+    # TOP COINS INFO
+    movers = top_movers()
+    send("🔥 TOP MOVERS:\n" + "\n".join([x["symbol"] for x in movers[:5]]))
 
     for symbol in SYMBOLS:
 
-        print("CHECK:", symbol)
-
         df = get_data(symbol)
+
         if df is None:
             continue
 
         df = calculate(df)
 
-        sig, tp, sl = signal(df)
+        # ================= SPOT
+        sig, tp, sl = spot_signal(df)
 
-        print("SIGNAL:", symbol, sig)
+        # ================= FUTURES
+        fut = futures_signal(df)
 
+        # ================= WHALE CHECK
+        whale = volume_spike(df)
+
+        price = df.iloc[-1]["close"]
+
+        # ================= MESSAGE
         if sig:
 
             msg = f"""
-🚀 SİNYAL
+🚀 SPOT SIGNAL
 
 Coin: {symbol}
-Tip: {sig}
-Entry: {df.iloc[-1]['close']}
+Type: {sig}
+Price: {price}
 
 TP: {round(tp,2)}
 SL: {round(sl,2)}
 """
 
             send(msg)
+
+        if fut:
+
+            send(f"""
+⚡ FUTURES SIGNAL
+
+Coin: {symbol}
+Direction: {fut}
+Price: {price}
+""")
+
+        if whale:
+
+            send(f"""
+🐋 WHALE ALERT
+
+Coin: {symbol}
+Volume Spike Detected!
+Price: {price}
+""")
+
+    send("✅ SCAN COMPLETE")
 
 
 run()
