@@ -22,7 +22,8 @@ def send(msg):
 # =========================
 def get_data(symbol):
 
-    url = "https://api.binance.com/api/v3/klines"
+    # 🔥 ALTERNATİF STABLE ENDPOINT
+    url = f"https://api1.binance.com/api/v3/klines"
 
     params = {
         "symbol": symbol,
@@ -39,14 +40,27 @@ def get_data(symbol):
 
         print("STATUS:", r.status_code)
 
-        if r.status_code != 200:
-            return None
+        # 🔥 RAW RESPONSE DEBUG
+        print("RAW:", str(r.text)[:100])
 
         data = r.json()
 
-        if not isinstance(data, list) or len(data) == 0:
-            print("DATA HATALI:", data)
+        if not isinstance(data, list):
+            print("NOT LIST:", data)
             return None
+
+        df = pd.DataFrame(data)
+        df = df.iloc[:, :6]
+        df.columns = ["time","open","high","low","close","volume"]
+
+        df["close"] = df["close"].astype(float)
+        df["volume"] = df["volume"].astype(float)
+
+        return df
+
+    except Exception as e:
+        print("ERROR:", e)
+        return None
 
         df = pd.DataFrame(data)
         df = df.iloc[:, :6]
