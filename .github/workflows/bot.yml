@@ -2,27 +2,23 @@ name: Trading Bot
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # 5 dakikada 1 çalışır
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:
-  run-bot:
+  run:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Repo çek
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Python kur
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
-      - name: Kütüphaneler
-        run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt
 
-      - name: Botu çalıştır
-        run: python main.py
+      - run: python main.py
         env:
           TOKEN: ${{ secrets.TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
