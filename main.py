@@ -1,6 +1,7 @@
 import requests
 import pandas as pd
-import ta
+import time
+
 from config import *
 
 
@@ -12,18 +13,23 @@ def send(msg):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
     try:
-        requests.post(url, data={"chat_id": CHAT_ID, "text": msg}, timeout=10)
+        requests.post(url, data={
+            "chat_id": CHAT_ID,
+            "text": msg
+        }, timeout=10)
     except:
-        pass
+        print("telegram error")
 
 
 # =========================
-# DATA
+# DATA FIX (STABLE)
 # =========================
 def get_data(symbol):
 
-    # 🔥 ALTERNATİF STABLE ENDPOINT
-    url = f"https://api1.binance.com/api/v3/klines"
+    urls = [
+        "https://api.binance.com/api/v3/klines",
+        "https://api1.binance.com/api/v3/klines"
+    ]
 
     params = {
         "symbol": symbol,
@@ -35,111 +41,67 @@ def get_data(symbol):
         "User-Agent": "Mozilla/5.0"
     }
 
-    try:
-        r = requests.get(url, params=params, headers=headers, timeout=10)
+    for url in urls:
 
-        print("STATUS:", r.status_code)
+        try:
+            r = requests.get(url, params=params, headers=headers, timeout=10)
 
-        # 🔥 RAW RESPONSE DEBUG
-        print("RAW:", str(r.text)[:100])
+            if r.status_code != 200:
+                continue
 
-        data = r.json()
+            data = r.json()
 
-        if not isinstance(data, list):
-            print("NOT LIST:", data)
-            return None
+            if isinstance(data, list) and len(data) > 0:
 
-        df = pd.DataFrame(data)
-        df = df.iloc[:, :6]
-        df.columns = ["time","open","high","low","close","volume"]
+                df = pd.DataFrame(data)
+                df = df.iloc[:, :6]
+                df.columns = ["time","open","high","low","close","volume"]
 
-        df["close"] = df["close"].astype(float)
-        df["volume"] = df["volume"].astype(float)
+                df["close"] = df["close"].astype(float)
+                df["volume"] = df["volume"].astype(float)
 
-        return df
+                return df
 
-    except Exception as e:
-        print("ERROR:", e)
-        return None
+        except:
+            continue
 
-        df = pd.DataFrame(data)
-        df = df.iloc[:, :6]
-        df.columns = ["time","open","high","low","close","volume"]
+    return None
 
-        df["close"] = df["close"].astype(float)
-        df["high"] = df["high"].astype(float)
-        df["low"] = df["low"].astype(float)
-        df["volume"] = df["volume"].astype(float)
 
-        return df
-
-    except Exception as e:
-        print("HATA:", e)
-        return None
 # =========================
 # INDICATORS
 # =========================
 def prepare(df):
 
-    df["ema20"] = ta.trend.ema_indicator(df["close"], 20)
-    df["ema50"] = ta.trend.ema_indicator(df["close"], 50)
-    df["rsi"] = ta.momentum.rsi(df["close"], 14)
-
-    macd = ta.trend.MACD(df["close"])
-    df["macd"] = macd.macd()
-    df["macd_signal"] = macd.macd_signal()
+    df["ema20"] = df["close"].rolling(20).mean()
+    df["ema50"] = df["close"].rolling(50).mean()
 
     return df
 
 
 # =========================
-# AI FILTER
+# SMART FILTER
 # =========================
-def ai_filter(df):
-
-    last = df.iloc[-1]
-
-    score = 0
-
-    if last["ema20"] > last["ema50"]:
-        score += 1
-
-    if 45 < last["rsi"] < 65:
-        score += 1
-
-    if last["macd"] > last["macd_signal"]:
-        score += 1
-
-    if df["volume"].iloc[-1] > df["volume"].rolling(20).mean().iloc[-1] * 1.5:
-        score += 1
-
-    return score >= 2
-
-
-# =========================
-# SMART MONEY
-# =========================
-def smart_money(df, symbol):
+def smart_money(df):
 
     vol = df["volume"].iloc[-1]
     avg = df["volume"].rolling(20).mean().iloc[-1]
 
-    print(symbol, "VOL:", vol, "AVG:", avg)
+    return vol > avg * 1.2
 
-    return vol > avg * 1.3
 
 # =========================
-# FUTURES ENGINE
+# SIGNAL ENGINE
 # =========================
-def futures(df):
+def signal(df):
 
     last = df.iloc[-1]
 
-    if last["ema20"] > last["ema50"] and last["rsi"] < 50:
-        return "LONG 5x"
+    if last["ema20"] > last["ema50"]:
+        return "BUY"
 
-    if last["ema20"] < last["ema50"] and last["rsi"] > 50:
-        return "SHORT 5x"
+    if last["ema20"] < last["ema50"]:
+        return "SELL"
 
     return None
 
@@ -147,58 +109,69 @@ def futures(df):
 # =========================
 # TOP MOVERS
 # =========================
-def top_movers():
+def movers():
 
     url = "https://api.binance.com/api/v3/ticker/24hr"
 
     try:
         data = requests.get(url, timeout=10).json()
+
+        sorted_data = sorted(
+            data,
+            key=lambda x: float(x["priceChangePercent"]),
+            reverse=True
+        )
+
+        return sorted_data[:5]
+
     except:
         return []
 
-    if not isinstance(data, list):
-        return []
-
-    cleaned = []
-
-    for x in data:
-        try:
-            x["priceChangePercent"] = float(x["priceChangePercent"])
-            cleaned.append(x)
-        except:
-            continue
-
-    return sorted(cleaned, key=lambda x: x["priceChangePercent"], reverse=True)[:5]
-
 
 # =========================
-# CORE AI ENGINE
+# MAIN LOOP
 # =========================
 def run():
 
-    send("🚀 BOT START TEST")
+    send("🚀 SAFE PRO BOT STARTED")
 
-    send(f"SYMBOLS: {SYMBOLS}")
+    top = movers()
+
+    if top:
+        send("🔥 TOP MOVERS:\n" +
+             "\n".join([f"{x['symbol']} %{x['priceChangePercent']}" for x in top]))
 
     for symbol in SYMBOLS:
 
-        send(f"LOOP GİRDİ: {symbol}")
+        send(f"CHECK: {symbol}")
 
         df = get_data(symbol)
 
         if df is None:
-            send(f"{symbol} DATA YOK")
+            send(f"{symbol} DATA FAILED")
             continue
-
-        send(f"{symbol} DATA OK")
 
         df = prepare(df)
 
-        last = df.iloc[-1]
-        price = last["close"]
+        if not smart_money(df):
+            continue
 
-        send(f"{symbol} PRICE: {price}")
+        sig = signal(df)
 
-    send("✅ TEST BİTTİ")
+        if sig:
+
+            price = df.iloc[-1]["close"]
+
+            send(f"""
+🚨 SAFE SIGNAL
+
+Coin: {symbol}
+Signal: {sig}
+Price: {price}
+""")
+
+
+    send("✅ SCAN COMPLETE")
+
 
 run()
