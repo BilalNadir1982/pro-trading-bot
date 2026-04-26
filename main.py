@@ -12,9 +12,14 @@ def send(msg):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
     try:
-        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
-    except:
-        print("Telegram error")
+        r = requests.post(
+            url,
+            data={"chat_id": CHAT_ID, "text": msg},
+            timeout=10
+        )
+        print("TG:", r.text)
+    except Exception as e:
+        print("Telegram error:", e)
 
 
 # =========================
@@ -26,51 +31,79 @@ def get_data(symbol):
     params = {"symbol": symbol, "interval": INTERVAL, "limit": 100}
 
     try:
-        data = requests.get(url, params=params).json()
+        data = requests.get(url, params=params, timeout=10).json()
     except:
         return None
 
     if not isinstance(data, list):
         return None
 
-    df = pd.DataFrame(data)
-    df = df.iloc[:, :6]
-    df.columns = ["time","open","high","low","close","volume"]
+    try:
+        df = pd.DataFrame(data)
+        df = df.iloc[:, :6]
+        df.columns = ["time","open","high","low","close","volume"]
 
-    df["close"] = df["close"].astype(float)
-    df["high"] = df["high"].astype(float)
-    df["low"] = df["low"].astype(float)
-    df["volume"] = df["volume"].astype(float)
+        df["close"] = df["close"].astype(float)
+        df["high"] = df["high"].astype(float)
+        df["low"] = df["low"].astype(float)
+        df["volume"] = df["volume"].astype(float)
 
-    return df
+        return df
 
-
-# =========================
-# WHALE / VOLUME SPIKE
-# =========================
-def volume_spike(df):
-
-    avg = df["volume"].rolling(20).mean().iloc[-1]
-    last = df["volume"].iloc[-1]
-
-    return last > avg * 2
+    except:
+        return None
 
 
 # =========================
-# TOP MOVERS
+# TOP MOVERS (FIXED)
 # =========================
 def top_movers():
 
     url = "https://api.binance.com/api/v3/ticker/24hr"
-    data = requests.get(url).json()
+
+    try:
+        data = requests.get(url, timeout=10).json()
+    except:
+        return []
+
+    if not isinstance(data, list):
+        return []
+
+    cleaned = []
+
+    for x in data:
+
+        if not isinstance(x, dict):
+            continue
+
+        try:
+            change = float(x.get("priceChangePercent", 0))
+            x["priceChangePercent"] = change
+            cleaned.append(x)
+        except:
+            continue
 
     sorted_data = sorted(
-        data,
-        key=lambda x: float(x["priceChangePercent"]),
+        cleaned,
+        key=lambda x: x["priceChangePercent"],
         reverse=True
     )
 
     return sorted_data[:5]
+
+
+# =========================
+# WHALE DETECTION
+# =========================
+def volume_spike(df):
+
+    try:
+        avg = df["volume"].rolling(20).mean().iloc[-1]
+        last = df["volume"].iloc[-1]
+
+        return last > avg * 2
+    except:
+        return False
 
 
 # =========================
@@ -80,11 +113,16 @@ def run():
 
     print("BOT STARTED")
 
-    send("🚀 PRO BOT AKTİF")
+    # 🔥 TEST MESAJI
+    send("🚀 BOT AKTİF")
 
-    # TOP COINS INFO
     movers = top_movers()
-    send("🔥 TOP MOVERS:\n" + "\n".join([x["symbol"] for x in movers[:5]]))
+
+    if movers:
+        msg = "🔥 TOP MOVERS:\n"
+        for m in movers:
+            msg += f"{m['symbol']} % {m['priceChangePercent']}\n"
+        send(msg)
 
     for symbol in SYMBOLS:
 
@@ -95,21 +133,13 @@ def run():
 
         df = calculate(df)
 
+        price = df.iloc[-1]["close"]
+
         # ================= SPOT
         sig, tp, sl = spot_signal(df)
 
-        # ================= FUTURES
-        fut = futures_signal(df)
-
-        # ================= WHALE CHECK
-        whale = volume_spike(df)
-
-        price = df.iloc[-1]["close"]
-
-        # ================= MESSAGE
         if sig:
-
-            msg = f"""
+            send(f"""
 🚀 SPOT SIGNAL
 
 Coin: {symbol}
@@ -118,12 +148,12 @@ Price: {price}
 
 TP: {round(tp,2)}
 SL: {round(sl,2)}
-"""
+""")
 
-            send(msg)
+        # ================= FUTURES
+        fut = futures_signal(df)
 
         if fut:
-
             send(f"""
 ⚡ FUTURES SIGNAL
 
@@ -132,17 +162,18 @@ Direction: {fut}
 Price: {price}
 """)
 
-        if whale:
-
+        # ================= WHALE
+        if volume_spike(df):
             send(f"""
 🐋 WHALE ALERT
 
 Coin: {symbol}
-Volume Spike Detected!
+Volume Spike
 Price: {price}
 """)
 
-    send("✅ SCAN COMPLETE")
 
-
+# =========================
+# START
+# =========================
 run()
