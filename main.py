@@ -1,57 +1,61 @@
-print("BOT STARTED")
-import pandas as pd
 import requests
+import pandas as pd
+import time
+from config import *
+from strategy import calculate, signal
 
-df = get_data(symbol)
 
-if df is None:
-    continue
+def send(msg):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+
+
+def get_data(symbol):
     url = "https://api.binance.com/api/v3/klines"
     params = {"symbol": symbol, "interval": INTERVAL, "limit": 200}
 
     data = requests.get(url, params=params).json()
 
-    # ❗ HATA KONTROL
-    if not isinstance(data, list) or len(data) == 0:
+    if not isinstance(data, list):
         return None
 
-    df = pd.DataFrame(data, columns=[
-        "time","open","high","low","close","volume",
-        "_","_","_","_","_","_"
-    ])
-
-    df = df[["open","high","low","close","volume"]]
+    df = pd.DataFrame(data)
+    df = df.iloc[:, :6]
+    df.columns = ["time", "open", "high", "low", "close", "volume"]
 
     df["close"] = df["close"].astype(float)
     df["high"] = df["high"].astype(float)
     df["low"] = df["low"].astype(float)
-    df["volume"] = df["volume"].astype(float)
 
     return df
+
 
 def run():
     sent = {}
 
+    print("BOT STARTED")
+
     while True:
-        try:
-            for symbol in SYMBOLS:
 
-    df = get_data(symbol)
+        for symbol in SYMBOLS:
 
-    if df is None:
-        continue
+            df = get_data(symbol)
 
-    df = calculate(df)
+            if df is None:
+                continue
 
-    sig, tp, sl = signal(df)
+            df = calculate(df)
 
-    if sig:
-        key = f"{symbol}_{sig}"
+            sig, tp, sl = signal(df)
 
-        if key not in sent:
-            price = df.iloc[-1]["close"]
+            if sig:
+                key = f"{symbol}_{sig}"
 
-            msg = f"""
+                if key not in sent:
+
+                    price = df.iloc[-1]["close"]
+
+                    msg = f"""
 🚀 SİNYAL
 
 Coin: {symbol}
@@ -61,13 +65,11 @@ Entry: {price}
 TP: {round(tp,2)}
 SL: {round(sl,2)}
 """
-            send(msg)
-            sent[key] = True
 
-            time.sleep(60)
+                    send(msg)
+                    sent[key] = True
 
-        except Exception as e:
-            print(e)
-            time.sleep(10)
+        time.sleep(60)
+
 
 run()
