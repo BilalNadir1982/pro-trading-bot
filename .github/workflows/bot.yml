@@ -1,24 +1,23 @@
-name: Trading Bot
+bot:
+  name: SmartMoneyEngineV3
+  version: 1.0
 
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: "*/15 * * * *"
+telegram:
+  enabled: true
 
-jobs:
-  run:
-    runs-on: ubuntu-latest
+market:
+  source: binance
+  type: futures
 
-    steps:
-      - uses: actions/checkout@v3
+scanner:
+  interval: 60
+  max_coins: 5
 
-      - uses: actions/setup-python@v4
-        with:
-          python-version: "3.10"
+filters:
+  liquidity: true
+  whale_detection: true
+  structure_analysis: true
 
-      - run: pip install -r requirements.txt
-
-      - run: python main.py
-        env:
-          TOKEN: ${{ secrets.TOKEN }}
-          CHAT_ID: ${{ secrets.CHAT_ID }}
+risk:
+  mode: conservative
+  max_trades_per_minute: 10
