@@ -15,12 +15,15 @@ def send(msg):
 
 
 # =========================
-# STATE INIT (panel control)
+# STATE
 # =========================
 STATE = {
     "enabled": True,
     "mode": "safe"
 }
+
+LAST_UPDATE_ID = None
+LAST_SIGNALS = {}
 
 
 # =========================
@@ -73,7 +76,7 @@ def signal(df):
 
 
 # =========================
-# TELEGRAM PANEL COMMANDS
+# TELEGRAM COMMANDS
 # =========================
 def handle(text):
 
@@ -95,16 +98,24 @@ Mode: {STATE['mode']}
 
 
 # =========================
-# LISTENER
+# LISTENER (FIXED)
 # =========================
 def listen():
+    global LAST_UPDATE_ID
 
     url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
 
     try:
-        r = requests.get(url, timeout=10).json()
+        params = {}
+
+        if LAST_UPDATE_ID:
+            params["offset"] = LAST_UPDATE_ID + 1
+
+        r = requests.get(url, params=params, timeout=10).json()
 
         for i in r.get("result", []):
+
+            LAST_UPDATE_ID = i["update_id"]
 
             try:
                 text = i["message"]["text"]
@@ -136,6 +147,12 @@ def run():
         if sig:
 
             price = df["c"].iloc[-1]
+
+            # aynı sinyal tekrarını engelle
+            if LAST_SIGNALS.get(symbol) == sig:
+                continue
+
+            LAST_SIGNALS[symbol] = sig
 
             send(f"""
 🚨 SIGNAL
