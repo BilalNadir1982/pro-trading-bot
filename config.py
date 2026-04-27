@@ -1,11 +1,30 @@
-import os
+# =========================
+# TELEGRAM CONFIG
+# =========================
+TELEGRAM_TOKEN = "BOT_TOKEN"
+CHAT_ID = "CHAT_ID"
 
-TOKEN = os.getenv("TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+# =========================
+# TRADE SETTINGS
+# =========================
+TIMEFRAME = "1m"
+COINS = [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "XRPUSDT"
+]
 
-SYMBOLS = ["BTCUSDT","ETHUSDT","SOLUSDT"]
+# =========================
+# SIGNAL SETTINGS
+# =========================
+BUY_THRESHOLD = 40
+SELL_THRESHOLD = -40
 
-STATE = {
-    "enabled": True,
-    "mode": "safe"
-}
+# =========================
+# FILTER SETTINGS
+# =========================
+MIN_VOLUME_FILTER = True
+WHALER_FILTER = True
+LIQUIDITY_FILTER = True
