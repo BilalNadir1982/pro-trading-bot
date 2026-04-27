@@ -1,212 +1,157 @@
 import requests
 import pandas as pd
 import time
-from config import *
 
 # =========================
 # TELEGRAM
 # =========================
+TOKEN = "BOT_TOKEN"
+CHAT_ID = "CHAT_ID"
+
 def send(msg):
-    try:
-        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-        requests.post(url, data={"chat_id": CHAT_ID, "text": msg}, timeout=10)
-    except:
-        print("Telegram error")
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+
 
 # =========================
-# STATE
+# COINS
 # =========================
-STATE = {
-    "enabled": True,
-    "mode": "normal"  # safe / normal / aggressive
-}
+COINS = ["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT"]
 
-LAST_UPDATE_ID = None
-LAST_SIGNALS = {}
 
 # =========================
 # DATA
 # =========================
-def get_data(symbol):
-    try:
-        url = "https://fapi.binance.com/fapi/v1/klines"
-        params = {
-            "symbol": symbol,
-            "interval": "5m",
-            "limit": 100
-        }
+def get_klines(symbol):
+    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1m&limit=100"
+    data = requests.get(url).json()
 
-        r = requests.get(url, params=params, timeout=10)
-        data = r.json()
+    df = pd.DataFrame(data, columns=[
+        "t","o","h","l","c","v","_","_","_","_","_","_"
+    ])
 
-        if not isinstance(data, list):
-            return None
+    df["h"] = df["h"].astype(float)
+    df["l"] = df["l"].astype(float)
+    df["c"] = df["c"].astype(float)
+    df["v"] = df["v"].astype(float)
 
-        df = pd.DataFrame(data)
-        df = df.iloc[:, :6]
-        df.columns = ["t","o","h","l","c","v"]
+    return df
 
-        df["c"] = df["c"].astype(float)
-        df["v"] = df["v"].astype(float)
 
-        return df
+def get_funding(symbol):
+    url = f"https://fapi.binance.com/fapi/v1/premiumIndex?symbol={symbol}"
+    return requests.get(url).json()
 
-    except:
-        return None
 
-# =========================
-# RSI
-# =========================
-def rsi(series, period=14):
-    delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(period).mean()
+def get_oi(symbol):
+    url = f"https://fapi.binance.com/fapi/v1/openInterest?symbol={symbol}"
+    return requests.get(url).json()
 
-    rs = gain / loss
-    return 100 - (100 / (1 + rs))
 
 # =========================
-# SIGNAL ENGINE
+# LIQUIDITY ENGINE
 # =========================
-def signal(df):
+def liquidity(df):
+    sweep_up = df["h"].iloc[-1] > df["h"].iloc[-5:-1].max()
+    sweep_down = df["l"].iloc[-1] < df["l"].iloc[-5:-1].min()
+    return sweep_up, sweep_down
 
-    ema20 = df["c"].ewm(span=20).mean()
-    ema50 = df["c"].ewm(span=50).mean()
-    rsi_val = rsi(df["c"])
 
-    volume = df["v"].iloc[-1]
-    avg_vol = df["v"].rolling(20).mean().iloc[-1]
+# =========================
+# STRUCTURE ENGINE (BOS / CHOCH)
+# =========================
+def structure(df):
+    bos = df["h"].iloc[-1] > df["h"].iloc[-3] and df["l"].iloc[-1] > df["l"].iloc[-3]
+    choch = df["h"].iloc[-1] < df["h"].iloc[-3] and df["l"].iloc[-1] < df["l"].iloc[-3]
+    return bos, choch
 
-    # HACİM FİLTRESİ
-    if volume < avg_vol:
-        return None
 
-    # MODE AYARI
-    if STATE["mode"] == "safe":
-        rsi_low, rsi_high = 25, 75
-    elif STATE["mode"] == "aggressive":
-        rsi_low, rsi_high = 40, 60
+# =========================
+# WHALE + CROWD
+# =========================
+def whale(symbol):
+    fund = get_funding(symbol)
+    oi = get_oi(symbol)
+
+    fr = float(fund["lastFundingRate"])
+    oi_v = float(oi["openInterest"])
+
+    bias = 0
+
+    if fr > 0.01:
+        bias -= 1
+    if fr < -0.01:
+        bias += 1
+    if oi_v > 0:
+        bias += 0.5
+
+    return bias
+
+
+# =========================
+# SCORE ENGINE
+# =========================
+def score(liq, smc, whale_bias):
+    s = 0
+
+    if liq[0]:
+        s += 25
+    if liq[1]:
+        s -= 25
+
+    if smc[0]:
+        s += 30
+    if smc[1]:
+        s -= 30
+
+    s += whale_bias * 20
+
+    return s
+
+
+# =========================
+# MAIN
+# =========================
+def run(symbol):
+    df = get_klines(symbol)
+
+    liq = liquidity(df)
+    smc = structure(df)
+    w = whale(symbol)
+
+    sc = score(liq, smc, w)
+
+    if sc > 40:
+        signal = "🟢 BUY"
+    elif sc < -40:
+        signal = "🔴 SELL"
     else:
-        rsi_low, rsi_high = 30, 70
-
-    # LONG
-    if ema20.iloc[-1] > ema50.iloc[-1] and rsi_val.iloc[-1] < rsi_low:
-        return "LONG"
-
-    # SHORT
-    if ema20.iloc[-1] < ema50.iloc[-1] and rsi_val.iloc[-1] > rsi_high:
-        return "SHORT"
-
-    return None
-
-# =========================
-# TELEGRAM COMMAND
-# =========================
-def handle(text):
-
-    if not text.startswith("/"):
         return
 
-    if text == "/on":
-        STATE["enabled"] = True
-        send("✅ BOT ON")
-
-    elif text == "/off":
-        STATE["enabled"] = False
-        send("⛔ BOT OFF")
-
-    elif text == "/safe":
-        STATE["mode"] = "safe"
-        send("🛡 SAFE MODE")
-
-    elif text == "/normal":
-        STATE["mode"] = "normal"
-        send("⚖️ NORMAL MODE")
-
-    elif text == "/aggressive":
-        STATE["mode"] = "aggressive"
-        send("🔥 AGGRESSIVE MODE")
-
-    elif text == "/status":
-        send(f"""
-📊 BOT STATUS
-
-Enabled: {STATE['enabled']}
-Mode: {STATE['mode']}
-""")
-
-# =========================
-# LISTEN (FIXED)
-# =========================
-def listen():
-    global LAST_UPDATE_ID
-
-    url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-
-    try:
-        params = {}
-
-        if LAST_UPDATE_ID:
-            params["offset"] = LAST_UPDATE_ID + 1
-
-        r = requests.get(url, params=params, timeout=10).json()
-
-        for i in r.get("result", []):
-            LAST_UPDATE_ID = i["update_id"]
-
-            try:
-                text = i["message"]["text"]
-                handle(text)
-            except:
-                pass
-
-    except:
-        pass
-
-# =========================
-# RUN
-# =========================
-def run():
-
-    if not STATE["enabled"]:
-        return
-
-    for symbol in SYMBOLS:
-
-        df = get_data(symbol)
-        if df is None:
-            continue
-
-        sig = signal(df)
-
-        if sig:
-
-            # tekrar engelle
-            if LAST_SIGNALS.get(symbol) == sig:
-                continue
-
-            LAST_SIGNALS[symbol] = sig
-
-            price = df["c"].iloc[-1]
-
-            send(f"""
-🚨 FUTURES SIGNAL
+    msg = f"""
+🧠 PRO SIGNAL ENGINE V3
 
 Coin: {symbol}
-Direction: {sig}
-Price: {price}
+Signal: {signal}
+Score: {sc}
 
-Mode: {STATE['mode']}
-""")
+📊 Liquidity Sweep: {liq}
+🧠 Structure (BOS/CHoCH): {smc}
+🐋 Whale Bias: {w}
+"""
+
+    send(msg)
+
 
 # =========================
-# START
+# LOOP
 # =========================
-send("🚀 PRO BOT STARTED")
-
 while True:
-
-    listen()
-    run()
+    for c in COINS:
+        try:
+            run(c)
+            time.sleep(1)
+        except:
+            pass
 
     time.sleep(60)
