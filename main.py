@@ -4,7 +4,7 @@ import time
 from config import *
 
 # =========================
-# TELEGRAM SEND
+# TELEGRAM
 # =========================
 def send(msg):
     try:
@@ -13,31 +13,27 @@ def send(msg):
     except:
         print("Telegram error")
 
-
 # =========================
 # STATE
 # =========================
 STATE = {
     "enabled": True,
-    "mode": "safe"
+    "mode": "normal"  # safe / normal / aggressive
 }
 
 LAST_UPDATE_ID = None
 LAST_SIGNALS = {}
 
-
 # =========================
-# BINANCE DATA
+# DATA
 # =========================
 def get_data(symbol):
-
     try:
         url = "https://fapi.binance.com/fapi/v1/klines"
-
         params = {
             "symbol": symbol,
-            "interval": "15m",
-            "limit": 50
+            "interval": "5m",
+            "limit": 100
         }
 
         r = requests.get(url, params=params, timeout=10)
@@ -51,34 +47,65 @@ def get_data(symbol):
         df.columns = ["t","o","h","l","c","v"]
 
         df["c"] = df["c"].astype(float)
+        df["v"] = df["v"].astype(float)
 
         return df
 
     except:
         return None
 
+# =========================
+# RSI
+# =========================
+def rsi(series, period=14):
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(period).mean()
+
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
 
 # =========================
 # SIGNAL ENGINE
 # =========================
 def signal(df):
 
-    ema20 = df["c"].rolling(5).mean()
-    ema50 = df["c"].rolling(10).mean()
+    ema20 = df["c"].ewm(span=20).mean()
+    ema50 = df["c"].ewm(span=50).mean()
+    rsi_val = rsi(df["c"])
 
-    if ema20.iloc[-1] > ema50.iloc[-1]:
+    volume = df["v"].iloc[-1]
+    avg_vol = df["v"].rolling(20).mean().iloc[-1]
+
+    # HACİM FİLTRESİ
+    if volume < avg_vol:
+        return None
+
+    # MODE AYARI
+    if STATE["mode"] == "safe":
+        rsi_low, rsi_high = 25, 75
+    elif STATE["mode"] == "aggressive":
+        rsi_low, rsi_high = 40, 60
+    else:
+        rsi_low, rsi_high = 30, 70
+
+    # LONG
+    if ema20.iloc[-1] > ema50.iloc[-1] and rsi_val.iloc[-1] < rsi_low:
         return "LONG"
 
-    if ema20.iloc[-1] < ema50.iloc[-1]:
+    # SHORT
+    if ema20.iloc[-1] < ema50.iloc[-1] and rsi_val.iloc[-1] > rsi_high:
         return "SHORT"
 
     return None
 
-
 # =========================
-# TELEGRAM COMMANDS
+# TELEGRAM COMMAND
 # =========================
 def handle(text):
+
+    if not text.startswith("/"):
+        return
 
     if text == "/on":
         STATE["enabled"] = True
@@ -88,6 +115,18 @@ def handle(text):
         STATE["enabled"] = False
         send("⛔ BOT OFF")
 
+    elif text == "/safe":
+        STATE["mode"] = "safe"
+        send("🛡 SAFE MODE")
+
+    elif text == "/normal":
+        STATE["mode"] = "normal"
+        send("⚖️ NORMAL MODE")
+
+    elif text == "/aggressive":
+        STATE["mode"] = "aggressive"
+        send("🔥 AGGRESSIVE MODE")
+
     elif text == "/status":
         send(f"""
 📊 BOT STATUS
@@ -96,9 +135,8 @@ Enabled: {STATE['enabled']}
 Mode: {STATE['mode']}
 """)
 
-
 # =========================
-# LISTENER (FIXED)
+# LISTEN (FIXED)
 # =========================
 def listen():
     global LAST_UPDATE_ID
@@ -114,7 +152,6 @@ def listen():
         r = requests.get(url, params=params, timeout=10).json()
 
         for i in r.get("result", []):
-
             LAST_UPDATE_ID = i["update_id"]
 
             try:
@@ -126,9 +163,8 @@ def listen():
     except:
         pass
 
-
 # =========================
-# MAIN ENGINE
+# RUN
 # =========================
 def run():
 
@@ -138,7 +174,6 @@ def run():
     for symbol in SYMBOLS:
 
         df = get_data(symbol)
-
         if df is None:
             continue
 
@@ -146,27 +181,28 @@ def run():
 
         if sig:
 
-            price = df["c"].iloc[-1]
-
-            # aynı sinyal tekrarını engelle
+            # tekrar engelle
             if LAST_SIGNALS.get(symbol) == sig:
                 continue
 
             LAST_SIGNALS[symbol] = sig
 
+            price = df["c"].iloc[-1]
+
             send(f"""
-🚨 SIGNAL
+🚨 FUTURES SIGNAL
 
 Coin: {symbol}
 Direction: {sig}
 Price: {price}
-""")
 
+Mode: {STATE['mode']}
+""")
 
 # =========================
 # START
 # =========================
-send("🚀 BOT STARTED")
+send("🚀 PRO BOT STARTED")
 
 while True:
 
