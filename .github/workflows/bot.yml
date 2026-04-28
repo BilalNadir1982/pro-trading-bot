@@ -1,23 +1,6 @@
-bot:
-  name: SmartMoneyEngineV3
-  version: 1.0
-
-telegram:
-  enabled: true
-
-market:
-  source: binance
-  type: futures
-
-scanner:
-  interval: 60
-  max_coins: 5
-
-filters:
-  liquidity: true
-  whale_detection: true
-  structure_analysis: true
-
-risk:
-  mode: conservative
-  max_trades_per_minute: 10
+services:
+  - type: web
+    name: dip-tepe-bot
+    env: python
+    buildCommand: ""
+    startCommand: python bot.py
