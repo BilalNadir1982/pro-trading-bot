@@ -15,26 +15,21 @@ def send(msg):
         pass
 
 # =========================
-# COIN LIST (CLEAN BINANCE SPOT ONLY)
+# SAFE COIN LIST (NO API FAIL)
 # =========================
 def get_coins():
-    url = "https://api.binance.com/api/v3/exchangeInfo"
-    r = requests.get(url, timeout=10).json()
-
-    symbols = []
-
-    for s in r.get("symbols", []):
-        if (
-            s.get("status") == "TRADING"
-            and s.get("quoteAsset") == "USDT"
-            and s.get("isSpotTradingAllowed")
-        ):
-            symbols.append(s["symbol"])
-
-    return symbols[:100]
+    # 🔥 FIX: direct stable list (Binance guaranteed majors)
+    return [
+        "BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT",
+        "ADAUSDT","DOGEUSDT","AVAXUSDT","LINKUSDT","LTCUSDT",
+        "DOTUSDT","TRXUSDT","MATICUSDT","ATOMUSDT","NEARUSDT",
+        "UNIUSDT","APTUSDT","ICPUSDT","FILUSDT","OPUSDT",
+        "ARBUSDT","SUIUSDT","INJUSDT","SEIUSDT","PEPEUSDT",
+        "SHIBUSDT","WLDUSDT","BONKUSDT","FETUSDT","RNDRUSDT"
+    ]
 
 # =========================
-# BINANCE DATA (SAFE)
+# BINANCE DATA
 # =========================
 def get_data(symbol):
     url = "https://api.binance.com/api/v3/klines"
@@ -47,7 +42,6 @@ def get_data(symbol):
     try:
         r = requests.get(url, timeout=10).json()
 
-        # Binance error check
         if not isinstance(r, list):
             return None
 
@@ -80,7 +74,7 @@ def indicators(df):
     return df
 
 # =========================
-# SCORE ENGINE
+# SCORE
 # =========================
 def score(row):
     s = 50
@@ -101,14 +95,19 @@ def score(row):
     return max(0, min(100, s))
 
 # =========================
-# MAIN LOOP
+# MAIN
 # =========================
 def run():
 
     send("🚀 PRO MAX BOT STARTED")
 
     coins = get_coins()
+
     send(f"📊 Coins loaded: {len(coins)}")
+
+    if len(coins) == 0:
+        send("❌ CRITICAL ERROR: NO COINS")
+        return
 
     for symbol in coins:
 
@@ -116,7 +115,6 @@ def run():
 
         df = get_data(symbol)
 
-        # 🔥 FULL FIX: INVALID DATA STOP
         if df is None or len(df) < 50:
             continue
 
