@@ -1,26 +1,48 @@
-import os
+from modules.scanner import get_top_symbols
+from modules.indicators import add_indicators
+from modules.scorer import score_row
+from modules.telegram import send
+from modules.filters import allow
 from binance.client import Client
-import requests
-import time
+import pandas as pd
 
-API_KEY = os.getenv("kudx5MdcG0vtL6ROzXFUDfk1EiLr48ocu1hVRre8xCvFee1ZTcUcfAssE9OADm8y")
-API_SECRET = os.getenv("oD96EwztNLMOoMl6sM5HbutHADS14kT8kY5SniupXecquNz6rkkpdFaOrk6PzdGY")
+client = Client()
 
-BOT_TOKEN = os.getenv("8515071054:AAG0tMwV6RH_rzMHkXrkECmP6UyOJekXXZo")
-CHAT_ID = os.getenv("768262682")
+def get_data(symbol):
+    klines = client.get_klines(symbol=symbol, interval="15m", limit=100)
+    df = pd.DataFrame(klines, columns=[
+        "time","open","high","low","close","volume",
+        "c1","c2","c3","c4","c5","c6"
+    ])
 
-client = Client(API_KEY, API_SECRET)
-
-def send(msg):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
-
-def get_price(symbol):
-    return float(client.get_symbol_ticker(symbol=symbol)["price"])
+    df = df.astype(float)
+    return df
 
 while True:
-    price = get_price("BTCUSDT")
+    symbols = get_top_symbols()
 
-    send(f"📊 BTC Price: {price}")
+    for symbol in symbols:
+        try:
+            df = get_data(symbol)
+            df = add_indicators(df)
 
-    time.sleep(60)
+            last = df.iloc[-1]
+            score = score_row(last)
+
+            if score >= 75 and allow(symbol):
+                direction = "LONG" if last["macd"] > last["macd_signal"] else "SHORT"
+
+                msg = f"""
+🔥 STRONG SIGNAL
+{symbol}
+
+📊 Score: {score}
+📈 Direction: {direction}
+RSI: {last['rsi']:.2f}
+ADX: {last['adx']:.2f}
+"""
+
+                send(msg)
+
+        except:
+            continue
