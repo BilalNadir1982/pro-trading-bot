@@ -2,7 +2,6 @@ import requests
 import pandas as pd
 import time
 import ta
-
 from config import BOT_TOKEN, CHAT_ID, MIN_SCORE
 
 # =========================
@@ -41,6 +40,9 @@ def get_data(symbol):
 
     r = requests.get(url, params=params).json()
 
+    if not isinstance(r, list):
+        return None
+
     df = pd.DataFrame(r, columns=[
         "time","open","high","low","close","volume",
         "c1","c2","c3","c4","c5","c6"
@@ -67,45 +69,54 @@ def indicators(df):
     return df
 
 # =========================
-# SCORE ENGINE (PRO MAX)
+# SCORE ENGINE
 # =========================
 def score(row):
     s = 50
 
-    # RSI
     if row["rsi"] < 30:
         s += 15
     elif row["rsi"] > 70:
         s -= 15
 
-    # MACD
     if row["macd"] > row["signal"]:
         s += 20
     else:
         s -= 20
 
-    # ADX trend strength
     if row["adx"] > 25:
         s += 10
 
     return max(0, min(100, s))
 
 # =========================
-# MAIN LOOP
+# MAIN
 # =========================
 def run():
+
     coins = get_coins()
 
     send("🚀 PRO MAX BOT STARTED")
 
+    send(f"📊 Coins loaded: {len(coins)}")
+
     for symbol in coins:
+
         try:
             df = get_data(symbol)
+
+            if df is None:
+                continue
+
             df = indicators(df)
 
             last = df.iloc[-1]
             sc = score(last)
 
+            # 🔎 DEBUG LOG (HER COIN)
+            send(f"🔎 {symbol} SCORE: {sc}")
+
+            # 🔥 SIGNAL
             if sc >= MIN_SCORE:
 
                 direction = "LONG" if last["macd"] > last["signal"] else "SHORT"
@@ -124,7 +135,7 @@ ATR: {last['atr']:.2f}
 
                 send(msg)
 
-            time.sleep(0.2)  # API limit koruması
+            time.sleep(0.2)
 
         except:
             continue
