@@ -7,46 +7,61 @@ from config import BOT_TOKEN, CHAT_ID, MIN_SCORE
 def send(msg):
     try:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+        requests.post(url, data={"chat_id": CHAT_ID, "text": msg}, timeout=10)
     except:
         pass
 
 # =========================
-# STABLE COINS (NO API FAIL)
+# FIXED REQUEST (IMPORTANT)
 # =========================
-COINS = [
-    "BTCUSDT",
-    "ETHUSDT",
-    "BNBUSDT",
-    "SOLUSDT",
-    "XRPUSDT"
-]
+def safe_get(url, params=None):
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+
+        r = requests.get(url, params=params, headers=headers, timeout=10)
+
+        if r.status_code != 200:
+            return None
+
+        try:
+            return r.json()
+        except:
+            return None
+
+    except:
+        return None
+
+# =========================
+# COINS
+# =========================
+COINS = ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT"]
 
 # =========================
 # DATA
 # =========================
 def get_data(symbol):
-    try:
-        url = "https://api.binance.com/api/v3/klines"
-        r = requests.get(url, params={
-            "symbol": symbol,
-            "interval": "15m",
-            "limit": 100
-        }, timeout=10).json()
 
-        if not isinstance(r, list):
-            return None
+    url = "https://api.binance.com/api/v3/klines"
 
-        df = pd.DataFrame(r, columns=[
-            "time","open","high","low","close","volume",
-            "c1","c2","c3","c4","c5","c6"
-        ])
+    r = safe_get(url, {
+        "symbol": symbol,
+        "interval": "15m",
+        "limit": 100
+    })
 
-        df = df[["open","high","low","close","volume"]].astype(float)
-        return df
-
-    except:
+    if not r or not isinstance(r, list):
         return None
+
+    df = pd.DataFrame(r, columns=[
+        "time","open","high","low","close","volume",
+        "c1","c2","c3","c4","c5","c6"
+    ])
+
+    df = df[["open","high","low","close","volume"]].astype(float)
+
+    return df
 
 # =========================
 # INDICATORS
@@ -83,14 +98,14 @@ def score(row):
 # =========================
 def run():
 
-    send("🚀 STABLE BOT STARTED")
+    send("🚀 FIXED BOT STARTED")
 
     for symbol in COINS:
 
         df = get_data(symbol)
 
         if df is None:
-            send(f"❌ DATA FAIL: {symbol}")
+            send(f"❌ STILL FAIL: {symbol}")
             continue
 
         df = indicators(df)
