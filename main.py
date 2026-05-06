@@ -1,31 +1,56 @@
 import requests
-from config import BOT_TOKEN, CHAT_ID
+import time
+
+# =========================
+# AYARLAR (BURAYI DOLDUR)
+# =========================
+BOT_TOKEN = "BURAYA_BOT_TOKEN"
+CHAT_ID = "BURAYA_CHAT_ID"
 
 # =========================
 # TELEGRAM
 # =========================
 def send(msg):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
         requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
     except:
         print("Telegram error")
 
 # =========================
-# DATA
+# BINANCE DATA (SAFE)
 # =========================
 def get_tickers():
     try:
         url = "https://api.binance.com/api/v3/ticker/24hr"
-        return requests.get(url, timeout=10).json()
+        r = requests.get(url, timeout=10)
+
+        if r.status_code != 200:
+            return []
+
+        data = r.json()
+
+        if not isinstance(data, list):
+            return []
+
+        return data
     except:
         return []
 
+# =========================
+# KLINE DATA
+# =========================
 def get_klines(symbol):
     try:
         url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=5m&limit=100"
-        data = requests.get(url, timeout=10).json()
-        return [float(x[4]) for x in data]
+        r = requests.get(url, timeout=10)
+        data = r.json()
+
+        if not isinstance(data, list):
+            return []
+
+        closes = [float(x[4]) for x in data if isinstance(x, list)]
+        return closes
     except:
         return []
 
@@ -33,10 +58,15 @@ def get_klines(symbol):
 # EMA
 # =========================
 def ema(data, period):
+    if len(data) == 0:
+        return 0
+
     k = 2 / (period + 1)
     val = data[0]
+
     for price in data:
         val = price * k + val * (1 - k)
+
     return val
 
 # =========================
@@ -44,21 +74,31 @@ def ema(data, period):
 # =========================
 def score(change, volume):
     s = 0
-    if change > 5: s += 20
-    elif change > 2: s += 10
-    if change < -5: s -= 20
-    elif change < -2: s -= 10
 
-    if volume > 1_000_000_000: s += 20
-    elif volume > 500_000_000: s += 10
+    if change > 5:
+        s += 20
+    elif change > 2:
+        s += 10
+    elif change < -5:
+        s -= 20
+    elif change < -2:
+        s -= 10
+
+    if volume > 1_000_000_000:
+        s += 20
+    elif volume > 500_000_000:
+        s += 10
+    elif volume < 100_000_000:
+        s -= 10
 
     return s
 
 # =========================
-# ANALYZE
+# TREND ANALİZ
 # =========================
 def analyze(symbol):
     closes = get_klines(symbol)
+
     if len(closes) < 50:
         return None
 
@@ -70,26 +110,40 @@ def analyze(symbol):
         return "UP"
     elif ema20 < ema50 and price < ema20:
         return "DOWN"
-    return "SIDE"
+    else:
+        return "SIDE"
 
 # =========================
-# SIGNAL
+# SİNYAL
 # =========================
 def get_signal():
     data = get_tickers()
+
+    if not data:
+        return "❌ DATA YOK"
+
     best = None
     best_score = -999
 
     for d in data:
-        symbol = d["symbol"]
-        if "USDT" not in symbol:
+
+        if not isinstance(d, dict):
             continue
 
-        change = float(d["priceChangePercent"])
-        volume = float(d["quoteVolume"])
-        price = float(d["lastPrice"])
+        symbol = d.get("symbol")
+
+        if not symbol or "USDT" not in symbol:
+            continue
+
+        try:
+            change = float(d.get("priceChangePercent", 0))
+            volume = float(d.get("quoteVolume", 0))
+            price = float(d.get("lastPrice", 0))
+        except:
+            continue
 
         trend = analyze(symbol)
+
         if not trend:
             continue
 
@@ -105,21 +159,30 @@ def get_signal():
             best = (symbol, price, sc, trend)
 
     if not best:
-        return "NO DATA"
+        return "⚠️ COIN YOK"
 
     s, p, sc, t = best
 
-    if sc > 50 and t == "UP":
-        return f"🔥 STRONG BUY\n{s}\nPrice: {p}"
-    elif sc < -40 and t == "DOWN":
-        return f"🔻 STRONG SELL\n{s}\nPrice: {p}"
+    if sc >= 60 and t == "UP":
+        return f"🔥 STRONG BUY\n{s}\nPrice: {p}\nScore: {sc}"
+
+    elif sc <= -40 and t == "DOWN":
+        return f"🔻 STRONG SELL\n{s}\nPrice: {p}\nScore: {sc}"
+
     else:
-        return f"⚪ NO TRADE\n{s}"
+        return f"⚪ NO TRADE\n{s}\nScore: {sc}"
 
 # =========================
-# RUN
+# LOOP (5 DK)
 # =========================
-if __name__ == "__main__":
-    msg = get_signal()
-    print(msg)
-    send(msg)
+print("BOT STARTED")
+
+while True:
+    try:
+        signal = get_signal()
+        print(signal)
+        send(signal)
+    except Exception as e:
+        print("ERROR:", e)
+
+    time.sleep(300)
