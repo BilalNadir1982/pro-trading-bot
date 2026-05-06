@@ -15,23 +15,22 @@ def send(msg):
         pass
 
 # =========================
-# COIN LIST (CoinGecko)
+# COIN LIST (FIXED - BINANCE ONLY)
 # =========================
 def get_coins():
-    url = "https://api.coingecko.com/api/v3/coins/markets"
-    params = {
-        "vs_currency": "usd",
-        "order": "volume_desc",
-        "per_page": 100,
-        "page": 1,
-        "sparkline": False
-    }
+    url = "https://api.binance.com/api/v3/exchangeInfo"
+    data = requests.get(url).json()
 
-    data = requests.get(url, params=params).json()
-    return [c["symbol"].upper() + "USDT" for c in data]
+    symbols = []
+
+    for s in data["symbols"]:
+        if s["status"] == "TRADING" and s["quoteAsset"] == "USDT":
+            symbols.append(s["symbol"])
+
+    return symbols[:100]
 
 # =========================
-# BINANCE PUBLIC DATA
+# BINANCE DATA
 # =========================
 def get_data(symbol):
     url = "https://api.binance.com/api/v3/klines"
@@ -97,7 +96,7 @@ def score(row):
     return max(0, min(100, s))
 
 # =========================
-# MAIN
+# MAIN LOOP
 # =========================
 def run():
 
@@ -128,7 +127,7 @@ def run():
 
                 direction = "LONG" if last["macd"] > last["signal"] else "SHORT"
 
-                msg = f"""
+                send(f"""
 🔥 PRO SIGNAL
 
 📌 Coin: {symbol}
@@ -138,9 +137,7 @@ def run():
 RSI: {last['rsi']:.2f}
 ADX: {last['adx']:.2f}
 ATR: {last['atr']:.2f}
-"""
-
-                send(msg)
+""")
 
             time.sleep(0.2)
 
