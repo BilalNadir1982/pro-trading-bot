@@ -4,9 +4,6 @@ import time
 import ta
 from config import BOT_TOKEN, CHAT_ID, MIN_SCORE
 
-# =========================
-# TELEGRAM
-# =========================
 def send(msg):
     try:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -15,27 +12,27 @@ def send(msg):
         pass
 
 # =========================
-# COINS
+# STABLE COINS (NO API FAIL)
 # =========================
-def get_coins():
-    return [
-        "BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT",
-        "ADAUSDT","DOGEUSDT","AVAXUSDT","LINKUSDT","LTCUSDT",
-        "DOTUSDT","TRXUSDT","MATICUSDT","ATOMUSDT","NEARUSDT",
-        "UNIUSDT","APTUSDT","ICPUSDT","FILUSDT","OPUSDT",
-        "ARBUSDT","SUIUSDT","INJUSDT","SEIUSDT","PEPEUSDT",
-        "SHIBUSDT","WLDUSDT","BONKUSDT","FETUSDT","RNDRUSDT"
-    ]
+COINS = [
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "SOLUSDT",
+    "XRPUSDT"
+]
 
 # =========================
 # DATA
 # =========================
 def get_data(symbol):
-    url = "https://api.binance.com/api/v3/klines"
-    params = {"symbol": symbol, "interval": "15m", "limit": 100}
-
     try:
-        r = requests.get(url, timeout=10).json()
+        url = "https://api.binance.com/api/v3/klines"
+        r = requests.get(url, params={
+            "symbol": symbol,
+            "interval": "15m",
+            "limit": 100
+        }, timeout=10).json()
 
         if not isinstance(r, list):
             return None
@@ -61,8 +58,6 @@ def indicators(df):
     df["macd"] = macd.macd()
     df["signal"] = macd.macd_signal()
 
-    df["adx"] = ta.trend.ADXIndicator(df["high"], df["low"], df["close"]).adx()
-
     return df
 
 # =========================
@@ -81,9 +76,6 @@ def score(row):
     else:
         s -= 20
 
-    if row["adx"] > 25:
-        s += 10
-
     return max(0, min(100, s))
 
 # =========================
@@ -91,20 +83,14 @@ def score(row):
 # =========================
 def run():
 
-    send("🚀 PRO MAX BOT STARTED")
+    send("🚀 STABLE BOT STARTED")
 
-    coins = get_coins()
-
-    send(f"📊 Coins loaded: {len(coins)}")
-
-    for symbol in coins:
-
-        send(f"🔎 Checking: {symbol}")
+    for symbol in COINS:
 
         df = get_data(symbol)
 
         if df is None:
-            send(f"❌ DATA ERROR: {symbol}")
+            send(f"❌ DATA FAIL: {symbol}")
             continue
 
         df = indicators(df)
@@ -112,7 +98,6 @@ def run():
         last = df.iloc[-1]
         sc = score(last)
 
-        # 🔥 SCORE LOG (ÖNEMLİ)
         send(f"📊 {symbol} SCORE: {sc}")
 
         if sc >= MIN_SCORE:
@@ -120,20 +105,14 @@ def run():
             direction = "LONG" if last["macd"] > last["signal"] else "SHORT"
 
             send(f"""
-🔥 PRO SIGNAL
+🔥 SIGNAL
 
-📌 Coin: {symbol}
-📊 Score: {sc}
-📈 Direction: {direction}
-
-RSI: {last['rsi']:.2f}
-ADX: {last['adx']:.2f}
+Coin: {symbol}
+Score: {sc}
+Direction: {direction}
 """)
 
-        time.sleep(0.2)
+        time.sleep(1)
 
-# =========================
-# START
-# =========================
 if __name__ == "__main__":
     run()
