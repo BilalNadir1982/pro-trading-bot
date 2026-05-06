@@ -1,51 +1,47 @@
-import os
-import time
-import pandas as pd
 import requests
-from binance.client import Client
+import pandas as pd
+import time
 import ta
 
-# =========================
-# ENV CONFIG (GitHub Secrets)
-# =========================
-API_KEY = os.getenv("BINANCE_API_KEY")
-API_SECRET = os.getenv("BINANCE_API_SECRET")
-
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-
-client = Client(API_KEY, API_SECRET)
+from config import BOT_TOKEN, CHAT_ID, MIN_SCORE
 
 # =========================
-# SPAM CONTROL
-# =========================
-last_signal_time = {}
-
-COOLDOWN = 900  # 15 dakika
-MIN_SCORE = 75
-
-# =========================
-# TELEGRAM SEND
+# TELEGRAM
 # =========================
 def send(msg):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
 # =========================
-# COIN LIST (TOP 100 USDT)
+# COIN LIST (CoinGecko)
 # =========================
-def get_symbols():
-    tickers = client.get_ticker()
-    symbols = [t["symbol"] for t in tickers if t["symbol"].endswith("USDT")]
-    return symbols[:100]
+def get_coins():
+    url = "https://api.coingecko.com/api/v3/coins/markets"
+    params = {
+        "vs_currency": "usd",
+        "order": "volume_desc",
+        "per_page": 100,
+        "page": 1,
+        "sparkline": False
+    }
+
+    data = requests.get(url, params=params).json()
+    return [c["symbol"].upper() + "USDT" for c in data]
 
 # =========================
-# PRICE DATA
+# BINANCE PUBLIC DATA
 # =========================
 def get_data(symbol):
-    klines = client.get_klines(symbol=symbol, interval="15m", limit=100)
+    url = f"https://api.binance.com/api/v3/klines"
+    params = {
+        "symbol": symbol,
+        "interval": "15m",
+        "limit": 100
+    }
 
-    df = pd.DataFrame(klines, columns=[
+    r = requests.get(url, params=params).json()
+
+    df = pd.DataFrame(r, columns=[
         "time","open","high","low","close","volume",
         "c1","c2","c3","c4","c5","c6"
     ])
@@ -61,7 +57,7 @@ def indicators(df):
 
     macd = ta.trend.MACD(df["close"])
     df["macd"] = macd.macd()
-    df["macd_signal"] = macd.macd_signal()
+    df["signal"] = macd.macd_signal()
 
     df["adx"] = ta.trend.ADXIndicator(df["high"], df["low"], df["close"]).adx()
 
@@ -71,7 +67,7 @@ def indicators(df):
     return df
 
 # =========================
-# SCORE ENGINE
+# SCORE ENGINE (PRO MAX)
 # =========================
 def score(row):
     s = 50
@@ -83,7 +79,7 @@ def score(row):
         s -= 15
 
     # MACD
-    if row["macd"] > row["macd_signal"]:
+    if row["macd"] > row["signal"]:
         s += 20
     else:
         s -= 20
@@ -95,25 +91,14 @@ def score(row):
     return max(0, min(100, s))
 
 # =========================
-# SPAM FILTER
-# =========================
-def allow(symbol):
-    now = time.time()
-
-    if symbol in last_signal_time:
-        if now - last_signal_time[symbol] < COOLDOWN:
-            return False
-
-    last_signal_time[symbol] = now
-    return True
-
-# =========================
 # MAIN LOOP
 # =========================
 def run():
-    symbols = get_symbols()
+    coins = get_coins()
 
-    for symbol in symbols:
+    send("🚀 PRO MAX BOT STARTED")
+
+    for symbol in coins:
         try:
             df = get_data(symbol)
             df = indicators(df)
@@ -121,12 +106,12 @@ def run():
             last = df.iloc[-1]
             sc = score(last)
 
-            if sc >= MIN_SCORE and allow(symbol):
+            if sc >= MIN_SCORE:
 
-                direction = "LONG" if last["macd"] > last["macd_signal"] else "SHORT"
+                direction = "LONG" if last["macd"] > last["signal"] else "SHORT"
 
                 msg = f"""
-🔥 STRONG SIGNAL
+🔥 PRO SIGNAL
 
 📌 Coin: {symbol}
 📊 Score: {sc}
@@ -139,12 +124,13 @@ ATR: {last['atr']:.2f}
 
                 send(msg)
 
-        except Exception as e:
+            time.sleep(0.2)  # API limit koruması
+
+        except:
             continue
 
 # =========================
 # START
 # =========================
 if __name__ == "__main__":
-    send("🚀 BOT STARTED")  # 👈 BURAYA EKLİYORSUN
     run()
