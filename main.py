@@ -146,4 +146,5 @@ ATR: {last['atr']:.2f}
 # START
 # =========================
 if __name__ == "__main__":
+    send("🚀 BOT STARTED")  # 👈 BURAYA EKLİYORSUN
     run()
