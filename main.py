@@ -19,15 +19,28 @@ def send(msg):
 # =========================
 def get_coins():
     url = "https://api.binance.com/api/v3/exchangeInfo"
-    data = requests.get(url).json()
 
-    symbols = []
+    try:
+        r = requests.get(url, timeout=10)
 
-    for s in data["symbols"]:
-        if s["status"] == "TRADING" and s["quoteAsset"] == "USDT":
-            symbols.append(s["symbol"])
+        data = r.json()
 
-    return symbols[:100]
+        # 🔥 DEBUG KONTROL
+        if "symbols" not in data:
+            print("BINANCE ERROR:", data)
+            return []
+
+        symbols = []
+
+        for s in data["symbols"]:
+            if s["status"] == "TRADING" and s["quoteAsset"] == "USDT":
+                symbols.append(s["symbol"])
+
+        return symbols[:100]
+
+    except Exception as e:
+        print("GET COINS ERROR:", e)
+        return []
 
 # =========================
 # BINANCE DATA
