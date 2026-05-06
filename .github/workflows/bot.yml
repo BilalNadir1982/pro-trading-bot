@@ -1,25 +1,30 @@
-name: Crypto Bot
+name: Binance Bot
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"   # her 5 dakika
   workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Repo çek
-        uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Python kur
-        uses: actions/setup-python@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      - name: Paket kur
+      - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Bot çalıştır
+      - name: Run bot
+        env:
+          BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
+          BINANCE_API_SECRET: ${{ secrets.BINANCE_API_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python main.py
