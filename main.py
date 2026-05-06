@@ -15,10 +15,9 @@ def send(msg):
         pass
 
 # =========================
-# SAFE COIN LIST (NO API FAIL)
+# COINS
 # =========================
 def get_coins():
-    # 🔥 FIX: direct stable list (Binance guaranteed majors)
     return [
         "BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT",
         "ADAUSDT","DOGEUSDT","AVAXUSDT","LINKUSDT","LTCUSDT",
@@ -29,15 +28,11 @@ def get_coins():
     ]
 
 # =========================
-# BINANCE DATA
+# DATA
 # =========================
 def get_data(symbol):
     url = "https://api.binance.com/api/v3/klines"
-    params = {
-        "symbol": symbol,
-        "interval": "15m",
-        "limit": 100
-    }
+    params = {"symbol": symbol, "interval": "15m", "limit": 100}
 
     try:
         r = requests.get(url, timeout=10).json()
@@ -68,9 +63,6 @@ def indicators(df):
 
     df["adx"] = ta.trend.ADXIndicator(df["high"], df["low"], df["close"]).adx()
 
-    atr = ta.volatility.AverageTrueRange(df["high"], df["low"], df["close"])
-    df["atr"] = atr.average_true_range()
-
     return df
 
 # =========================
@@ -95,7 +87,7 @@ def score(row):
     return max(0, min(100, s))
 
 # =========================
-# MAIN
+# RUN
 # =========================
 def run():
 
@@ -105,17 +97,14 @@ def run():
 
     send(f"📊 Coins loaded: {len(coins)}")
 
-    if len(coins) == 0:
-        send("❌ CRITICAL ERROR: NO COINS")
-        return
-
     for symbol in coins:
 
         send(f"🔎 Checking: {symbol}")
 
         df = get_data(symbol)
 
-        if df is None or len(df) < 50:
+        if df is None:
+            send(f"❌ DATA ERROR: {symbol}")
             continue
 
         df = indicators(df)
@@ -123,6 +112,7 @@ def run():
         last = df.iloc[-1]
         sc = score(last)
 
+        # 🔥 SCORE LOG (ÖNEMLİ)
         send(f"📊 {symbol} SCORE: {sc}")
 
         if sc >= MIN_SCORE:
@@ -138,7 +128,6 @@ def run():
 
 RSI: {last['rsi']:.2f}
 ADX: {last['adx']:.2f}
-ATR: {last['atr']:.2f}
 """)
 
         time.sleep(0.2)
