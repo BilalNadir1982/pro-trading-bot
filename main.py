@@ -4,8 +4,8 @@ import time
 # =========================
 # AYARLAR (BURAYI DOLDUR)
 # =========================
-BOT_TOKEN = "BURAYA_BOT_TOKEN"
-CHAT_ID = "BURAYA_CHAT_ID"
+BOT_TOKEN = "8515071054:AAG0tMwV6RH_rzMHkXrkECmP6UyOJekXXZo"
+CHAT_ID = "768262682"
 
 # =========================
 # TELEGRAM
