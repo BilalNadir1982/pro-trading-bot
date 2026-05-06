@@ -8,8 +8,11 @@ from config import BOT_TOKEN, CHAT_ID, MIN_SCORE
 # TELEGRAM
 # =========================
 def send(msg):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+    except:
+        pass
 
 # =========================
 # COIN LIST (CoinGecko)
@@ -31,25 +34,29 @@ def get_coins():
 # BINANCE PUBLIC DATA
 # =========================
 def get_data(symbol):
-    url = f"https://api.binance.com/api/v3/klines"
+    url = "https://api.binance.com/api/v3/klines"
     params = {
         "symbol": symbol,
         "interval": "15m",
         "limit": 100
     }
 
-    r = requests.get(url, params=params).json()
+    try:
+        r = requests.get(url, timeout=10).json()
 
-    if not isinstance(r, list):
+        if not isinstance(r, list):
+            return None
+
+        df = pd.DataFrame(r, columns=[
+            "time","open","high","low","close","volume",
+            "c1","c2","c3","c4","c5","c6"
+        ])
+
+        df = df[["open","high","low","close","volume"]].astype(float)
+        return df
+
+    except:
         return None
-
-    df = pd.DataFrame(r, columns=[
-        "time","open","high","low","close","volume",
-        "c1","c2","c3","c4","c5","c6"
-    ])
-
-    df = df[["open","high","low","close","volume"]].astype(float)
-    return df
 
 # =========================
 # INDICATORS
@@ -94,29 +101,29 @@ def score(row):
 # =========================
 def run():
 
-    coins = get_coins()
-
     send("🚀 PRO MAX BOT STARTED")
 
+    coins = get_coins()
     send(f"📊 Coins loaded: {len(coins)}")
 
     for symbol in coins:
 
+        send(f"🔎 Checking: {symbol}")
+
+        df = get_data(symbol)
+
+        if df is None or len(df) < 50:
+            send(f"❌ DATA ERROR: {symbol}")
+            continue
+
         try:
-            df = get_data(symbol)
-
-            if df is None:
-                continue
-
             df = indicators(df)
 
             last = df.iloc[-1]
             sc = score(last)
 
-            # 🔎 DEBUG LOG (HER COIN)
-            send(f"🔎 {symbol} SCORE: {sc}")
+            send(f"📊 {symbol} SCORE: {sc}")
 
-            # 🔥 SIGNAL
             if sc >= MIN_SCORE:
 
                 direction = "LONG" if last["macd"] > last["signal"] else "SHORT"
@@ -138,6 +145,7 @@ ATR: {last['atr']:.2f}
             time.sleep(0.2)
 
         except:
+            send(f"⚠️ ERROR: {symbol}")
             continue
 
 # =========================
