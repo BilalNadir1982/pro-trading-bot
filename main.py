@@ -15,29 +15,26 @@ def send(msg):
         pass
 
 # =========================
-# COIN LIST (FIXED - BINANCE ONLY)
+# COIN LIST (CLEAN BINANCE SPOT ONLY)
 # =========================
 def get_coins():
     url = "https://api.binance.com/api/v3/exchangeInfo"
-
     r = requests.get(url, timeout=10).json()
 
     symbols = []
 
     for s in r.get("symbols", []):
-
-        # SADECE SPOT + USDT + ACTIVE
         if (
             s.get("status") == "TRADING"
             and s.get("quoteAsset") == "USDT"
-            and s.get("isSpotTradingAllowed") == True
+            and s.get("isSpotTradingAllowed")
         ):
             symbols.append(s["symbol"])
 
     return symbols[:100]
 
 # =========================
-# BINANCE DATA
+# BINANCE DATA (SAFE)
 # =========================
 def get_data(symbol):
     url = "https://api.binance.com/api/v3/klines"
@@ -50,6 +47,7 @@ def get_data(symbol):
     try:
         r = requests.get(url, timeout=10).json()
 
+        # Binance error check
         if not isinstance(r, list):
             return None
 
@@ -118,23 +116,22 @@ def run():
 
         df = get_data(symbol)
 
+        # 🔥 FULL FIX: INVALID DATA STOP
         if df is None or len(df) < 50:
-            send(f"❌ DATA ERROR: {symbol}")
             continue
 
-        try:
-            df = indicators(df)
+        df = indicators(df)
 
-            last = df.iloc[-1]
-            sc = score(last)
+        last = df.iloc[-1]
+        sc = score(last)
 
-            send(f"📊 {symbol} SCORE: {sc}")
+        send(f"📊 {symbol} SCORE: {sc}")
 
-            if sc >= MIN_SCORE:
+        if sc >= MIN_SCORE:
 
-                direction = "LONG" if last["macd"] > last["signal"] else "SHORT"
+            direction = "LONG" if last["macd"] > last["signal"] else "SHORT"
 
-                send(f"""
+            send(f"""
 🔥 PRO SIGNAL
 
 📌 Coin: {symbol}
@@ -146,11 +143,7 @@ ADX: {last['adx']:.2f}
 ATR: {last['atr']:.2f}
 """)
 
-            time.sleep(0.2)
-
-        except:
-            send(f"⚠️ ERROR: {symbol}")
-            continue
+        time.sleep(0.2)
 
 # =========================
 # START
