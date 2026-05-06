@@ -177,12 +177,10 @@ def get_signal():
 # =========================
 print("BOT STARTED")
 
-while True:
+if __name__ == "__main__":
     try:
         signal = get_signal()
         print(signal)
         send(signal)
     except Exception as e:
         print("ERROR:", e)
-
-    time.sleep(300)
