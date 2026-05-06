@@ -1,1 +1,1 @@
-# CryptoALSATBotu
+# pro-trading-bot
