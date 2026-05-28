@@ -1,24 +1,31 @@
-name: crypto-bot
+name: Kripto Sinyal Bot Otomasyonu
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: "*/30 * * * *"
+  push:
+    branches: [ main, master ]  # Koda güncelleme gelirse otomatik başlasın
+  workflow_dispatch:            # GitHub panelinden elle başlatma butonu
 
 jobs:
-  run-bot:
+  run-crypto-bot:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Depoyu Klonla
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: Python Ortamını Kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip' # Hızlı kurulum için önbelleğe al
 
-    - name: Install requirements
-      run: pip install -r requirements.txt
+      - name: Gerekli Kütüphaneleri Yükle
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-    - name: Run bot
-      run: python main.py
+      - name: Kripto Tarayıcıyı Başlat
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: python main.py
