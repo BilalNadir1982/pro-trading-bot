@@ -60,7 +60,7 @@ def calculate_ai_crypto_score(change, volume, btc_change):
     elif change < -3: score -= 25
 
     # Balina Hacim Puanlaması (Balina Giriş Tespiti)
-    if volume < 100_000_000 or change > 20: continue
+    if volume > 10_000_000_000: score += 25
     elif volume > 3_000_000_000: score += 15
     elif volume < 100_000_000: score -= 15
 
@@ -91,14 +91,17 @@ def analyze_and_filter_market():
     for asset in raw_market_data:
         try:
             symbol = asset["symbol"].upper()
-            if symbol.lower() in STABLE_AND_WRAPPED: continue
+            if symbol.lower() in STABLE_AND_WRAPPED: 
+                continue
 
             price = float(asset["current_price"] or 0)
             change = float(asset["price_change_percentage_24h"] or 0)
             volume = float(asset["total_volume"] or 0)
 
-            # Eşik Değer Filtresi: Günlük 100M$ altı hacimleri ve manipülatif pump'ları eliyoruz
-            if volume < 100_000_000 or change > 20: continue
+            # 🛠️ GİRİNTİ DÜZELTİLDİ VE FİLTRE ESNETİLDİ
+            # Sakin piyasalarda da sinyal kaçmasın diye alt sınırı 10 Milyon Dolar'a çektik.
+            if volume < 10_000_000 or change > 40: 
+                continue
 
             # Yapay zeka skorunu hesapla
             ai_score = calculate_ai_crypto_score(change, volume, btc_24h_change)
@@ -106,20 +109,24 @@ def analyze_and_filter_market():
             # Sinyal başlıkları ve profesyonel etiketleme
             if ai_score >= 85: 
                 signal_tag = "🚀 **ULTRA LONG (GÜÇLÜ AL)**"
-                market_note = "Yüksek balina hacmi desteğiyle kırılım eşiğinde."
+                market_note = "Yüksek balina hacmi desteğiyle kırılım esiğinde."
             elif ai_score >= 70: 
                 signal_tag = "🟢 **STRONG BUY (KUVVETLİ AL)**"
-                market_note = "Teknik indikatörler ve para girişi trendi destekliyor."
+                market_note = "Teknik indikatörler ve para girisi trendi destekliyor."
             elif ai_score <= 35: 
                 signal_tag = "🔻 **STRONG SELL (KUVVETLİ SAT)**"
-                market_note = "Aşırı satım baskısı ve hacim kaybı mevcut."
-            else: continue 
+                market_note = "Asırı satım baskısı ve hacim kaybı mevcut."
+            else: 
+                # Eğer skor nötrse de en iyi 5'e girebilsin diye listeye dahil ediyoruz
+                signal_tag = "⚡ **WATCH (TAKİP BÖLGESİ)**"
+                market_note = "Piyasa dengede, hacim ve yön kırılımı bekleniyor."
 
             processed_signals.append({
                 "symbol": symbol, "price": price, "change": round(change, 2),
                 "volume": volume, "score": ai_score, "signal": signal_tag, "note": market_note
             })
-        except: continue
+        except: 
+            continue
 
     # Yapay zeka skoruna göre en yüksekten en düşüğe sırala ve en iyi 5 varlığı getir
     return sorted(processed_signals, key=lambda x: x["score"], reverse=True)[:5]
