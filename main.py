@@ -60,7 +60,7 @@ def calculate_ai_crypto_score(change, volume, btc_change):
     elif change < -3: score -= 25
 
     # Balina Hacim Puanlaması (Balina Giriş Tespiti)
-    if volume > 10_000_000_000: score += 25
+    if volume < 100_000_000 or change > 20: continue
     elif volume > 3_000_000_000: score += 15
     elif volume < 100_000_000: score -= 15
 
