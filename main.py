@@ -5,7 +5,6 @@ import json
 # ==========================================
 # 1. GÜVENLİ GERÇEK ZAMANLI AYARLAR
 # ==========================================
-# GitHub Deposu -> Settings -> Secrets and variables -> Actions kısmından eklenmelidir.
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 API_URL = "https://api.coingecko.com/api/v3/coins/markets"
@@ -142,10 +141,7 @@ def main():
     msg += "🔸 ─────────────────────── 🔸\n\n"
 
     for coin in top_signals:
-        # Altcoin kuruş basamak koruması (Görsel bozulmayı önler)
         formatted_price = f"{coin['price']:,}" if coin['price'] >= 1 else f"{coin['price']:.6f}"
-        
-        # Artı ve eksi değişimlerin şık gösterimi
         formatted_change = f"+{coin['change']}" if coin['change'] > 0 else f"{coin['change']}"
 
         msg += f"{coin['signal']}\n"
@@ -158,7 +154,6 @@ def main():
     msg += "🎰 **Genel Piyasa Güven Endeksi:** `🟩🟩🟩🟩🟩🟩🟩🟩⬜⬜ %80`\n"
     msg += "🔔 *Kripto para piyasasında fırsatlar anlıktır. Bildirimleri açmayı unutmayın!*"
 
-    # Tek parça görkemli metni kanala fırlatıyoruz
     send_telegram_vip_report(msg)
 
 if __name__ == "__main__":
