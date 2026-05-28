@@ -98,7 +98,6 @@ def analyze_and_filter_market():
             change = float(asset["price_change_percentage_24h"] or 0)
             volume = float(asset["total_volume"] or 0)
 
-            # 🛠️ GİRİNTİ DÜZELTİLDİ VE FİLTRE ESNETİLDİ
             # Sakin piyasalarda da sinyal kaçmasın diye alt sınırı 10 Milyon Dolar'a çektik.
             if volume < 10_000_000 or change > 40: 
                 continue
@@ -106,20 +105,23 @@ def analyze_and_filter_market():
             # Yapay zeka skorunu hesapla
             ai_score = calculate_ai_crypto_score(change, volume, btc_24h_change)
 
-            # Sinyal başlıkları ve profesyonel etiketleme
+            # Sinyal durumları ve profesyonel etiketleme
             if ai_score >= 85: 
                 signal_tag = "🚀 **ULTRA LONG (GÜÇLÜ AL)**"
-                market_note = "Yüksek balina hacmi desteğiyle kırılım esiğinde."
+                market_note = "Balina cüzdanları hareketli, yukarı yönlü sert patlama gelebilir."
             elif ai_score >= 70: 
                 signal_tag = "🟢 **STRONG BUY (KUVVETLİ AL)**"
-                market_note = "Teknik indikatörler ve para girisi trendi destekliyor."
+                market_note = "Para girisi pozitif, ara dirençleri test etmek üzere güç topluyor."
             elif ai_score <= 35: 
                 signal_tag = "🔻 **STRONG SELL (KUVVETLİ SAT)**"
-                market_note = "Asırı satım baskısı ve hacim kaybı mevcut."
+                market_note = "Asırı satım baskısı ve hacim kaybı mevcut, dikkat edilmeli."
             else: 
-                # Eğer skor nötrse de en iyi 5'e girebilsin diye listeye dahil ediyoruz
                 signal_tag = "⚡ **WATCH (TAKİP BÖLGESİ)**"
-                market_note = "Piyasa dengede, hacim ve yön kırılımı bekleniyor."
+                # 💡 DİNAMİK ANALİZ NOTU MOTORU
+                if change > 0:
+                    market_note = "Kısa vadede alıcılar istahlı ancak genel piyasa baskısı yüzünden temkinli olunmalı."
+                else:
+                    market_note = "Satıs baskısı hafifliyor, alt destek bölgesinden tepki yükselisi gelebilir."
 
             processed_signals.append({
                 "symbol": symbol, "price": price, "change": round(change, 2),
